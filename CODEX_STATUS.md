@@ -1,14 +1,14 @@
 # Estado de Implementación — Sistema de Asistencia Iglesia
 
 ## Estado actual
-🟡 LISTO PARA PUSH
+🟡 EN REVISIÓN
 
 El proyecto base ya está funcional y validado localmente.  
-Hay un bloque adicional terminado en local pendiente de `commit` y `push`.
+El bloque más reciente ya fue empujado a `main` y quedó pendiente de revisión externa.
 
 ## Último push realizado
-- Commit en `main`: `4a21ee1`
-- Descripción: agenda de cultos, clasificaciones demográficas, historial de estados, visitantes rápidos y reportes clasificados
+- Commit en `main`: `6dc3537`
+- Descripción: ajuste de menú, nueva sección `Herramientas`, carga masiva CSV y plantilla de importación
 
 ## Validación local completada
 - `backend`: `npm run lint` OK
@@ -106,12 +106,7 @@ Hay un bloque adicional terminado en local pendiente de `commit` y `push`.
 - Esos archivos no aparecen en este workspace local, por lo que la validación documental completa sigue parcial
 
 ## Trabajo actual no empujado todavía
-- Commit y push del bloque:
-  - menú principal con `Agenda de cultos`
-  - `Tipos de miembros` como submenú
-  - `Herramientas`
-  - carga masiva CSV
-  - descarga de plantilla
+- Ninguno en este momento
 
 ## Archivos actualmente en edición local
 - `backend/src/controllers/miembros.controller.js`
@@ -123,9 +118,9 @@ Hay un bloque adicional terminado en local pendiente de `commit` y `push`.
 - `frontend/src/pages/SettingsScreen.jsx`
 
 ## Próximo bloque de trabajo
-1. Hacer `commit` y `push` del bloque local actual
-2. Etiquetar a Copilot para revisión
-3. Aplicar cualquier corrección derivada de esa revisión
+1. Esperar revisión de Copilot sobre el bloque recién empujado
+2. Aplicar cualquier corrección derivada de esa revisión
+3. Continuar con próximos ajustes funcionales
 
 ---
 *Última actualización: Codex — estado manual consolidado con trabajo histórico + trabajo en curso*
