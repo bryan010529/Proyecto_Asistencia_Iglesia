@@ -4,9 +4,6 @@ const Culto = require('./culto.model');
 const Miembro = require('./miembro.model');
 const Usuario = require('./usuario.model');
 
-// Importar modelos aquí a medida que se creen
-// const Usuario = require('./usuario.model');
-
 // Asociaciones entre modelos irán aquí
 
 module.exports = {

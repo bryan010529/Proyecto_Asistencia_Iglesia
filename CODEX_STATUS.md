@@ -1,34 +1,44 @@
 # Estado de Validación — Actualizado automáticamente por Claude
 
 ## Estado actual
-✅ APROBADO
+⚠️ APROBADO CON CORRECCIONES
 
 ## Última tarea validada
-TASK-B03 — Modelo Asistencia
+TASK-B04 — Modelo Usuario
 
 ## Correcciones aplicadas
-Ninguna — código correcto.
+- `index.js`: eliminado comentario duplicado `// const Usuario = require('./usuario.model')` (línea 8 — ya estaba importado en línea 5)
 
 ## Próxima tarea
-**TASK-B04** — Crear `backend/src/models/usuario.model.js`
+**TASK-B05** — Servicio y rutas de autenticación
 
-Campos requeridos:
-- `id` (INTEGER, PK, autoIncrement)
-- `nombre` (STRING, allowNull: false)
-- `correo` (STRING, allowNull: false, unique: true, validar isEmail)
-- `passwordHash` (STRING, allowNull: false)
-- `rol` (ENUM: 'admin', 'secretaria', allowNull: false, defaultValue: 'secretaria')
-- `activo` (BOOLEAN, allowNull: false, defaultValue: true)
+### Archivos a crear:
 
-Configuración del modelo:
-- `tableName: 'usuarios'`
-- `timestamps: true` — dejar que Sequelize maneje createdAt/updatedAt automáticamente, NO definirlos manualmente
-
-Registrar en `backend/src/models/index.js`:
+**`backend/src/services/auth.service.js`**
 ```js
-const Usuario = require('./usuario.model');
-// y agregarlo al module.exports
+// Funciones:
+// - login(correo, password) → busca Usuario por correo, compara con bcrypt, genera JWT
+// - El JWT debe incluir payload: { id, nombre, rol }
+// - Si credenciales inválidas → throw { status: 401, message: 'Credenciales inválidas' }
 ```
+
+**`backend/src/routes/auth.routes.js`**
+```js
+// POST /api/auth/login   → body: { correo, password } → res: { token, usuario: { id, nombre, rol } }
+// POST /api/auth/logout  → res: { message: 'Sesión cerrada' }  (solo limpia en cliente, no hay estado servidor)
+```
+
+**Registrar en `backend/src/routes/index.js`:**
+```js
+const authRoutes = require('./auth.routes');
+router.use('/auth', authRoutes);
+```
+
+### Detalles importantes:
+- Usar `bcryptjs` (ya en package.json) para comparar contraseña con `passwordHash`
+- JWT con `jsonwebtoken`: secret = `process.env.JWT_SECRET`, expiresIn = `process.env.JWT_EXPIRES_IN`
+- Validar con `express-validator`: correo requerido + isEmail, password requerido + minLength(6)
+- Errores siempre como `{ error: 'mensaje' }` con status HTTP correcto
 
 ---
 *Última actualización: Claude Sonnet 4.6 — validación automática*
