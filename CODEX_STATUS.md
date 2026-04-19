@@ -4,26 +4,31 @@
 ✅ APROBADO
 
 ## Última tarea validada
-TASK-B02 — Modelo Culto
+TASK-B03 — Modelo Asistencia
 
 ## Correcciones aplicadas
-- culto.model.js: eliminado `createdAt` manual (redundante con `timestamps:true`)
+Ninguna — código correcto.
 
 ## Próxima tarea
-**TASK-B03** — Crear `backend/src/models/asistencia.model.js`
+**TASK-B04** — Crear `backend/src/models/usuario.model.js`
 
 Campos requeridos:
-- `id` (PK, autoIncrement)
-- `miembroId` (FK → Miembro)
-- `cultoId` (FK → Culto)
-- `horaRegistro` (DATETIME)
-- `registradoPor` (FK → Usuario — puede ser INTEGER, el modelo Usuario aún no existe, dejar como campo simple por ahora)
+- `id` (INTEGER, PK, autoIncrement)
+- `nombre` (STRING, allowNull: false)
+- `correo` (STRING, allowNull: false, unique: true, validar isEmail)
+- `passwordHash` (STRING, allowNull: false)
+- `rol` (ENUM: 'admin', 'secretaria', allowNull: false, defaultValue: 'secretaria')
+- `activo` (BOOLEAN, allowNull: false, defaultValue: true)
 
-Asociaciones en el mismo archivo:
-- `Asistencia.belongsTo(Miembro, { foreignKey: 'miembroId' })`
-- `Asistencia.belongsTo(Culto, { foreignKey: 'cultoId' })`
+Configuración del modelo:
+- `tableName: 'usuarios'`
+- `timestamps: true` — dejar que Sequelize maneje createdAt/updatedAt automáticamente, NO definirlos manualmente
 
-Registrar en `backend/src/models/index.js`.
+Registrar en `backend/src/models/index.js`:
+```js
+const Usuario = require('./usuario.model');
+// y agregarlo al module.exports
+```
 
 ---
 *Última actualización: Claude Sonnet 4.6 — validación automática*
