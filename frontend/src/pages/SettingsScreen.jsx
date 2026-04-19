@@ -102,9 +102,13 @@ const EMPTY_AGENDA_FORM = {
   razon: '',
 };
 
-export default function SettingsScreen({ toast }) {
+export default function SettingsScreen({
+  toast,
+  initialSection = 'seguridad',
+  sectionsOverride = ['seguridad', 'usuarios', 'tipos', 'agenda'],
+}) {
   const { user } = useAuth();
-  const [section, setSection] = useState('seguridad');
+  const [section, setSection] = useState(initialSection);
   const [passwordForm, setPasswordForm] = useState(EMPTY_PASSWORD_FORM);
   const [savingPassword, setSavingPassword] = useState(false);
   const [userModalOpen, setUserModalOpen] = useState(false);
@@ -168,6 +172,10 @@ export default function SettingsScreen({ toast }) {
     () => buildCalendarDays(agendaMonth, agendaDays),
     [agendaDays, agendaMonth]
   );
+
+  useEffect(() => {
+    setSection(initialSection);
+  }, [initialSection]);
 
   useEffect(() => {
     if (editingUser) {
@@ -361,27 +369,30 @@ export default function SettingsScreen({ toast }) {
     }
   }
 
-  const sections = [
+  const allSections = [
     { id: 'seguridad', label: 'Seguridad' },
     { id: 'usuarios', label: 'Usuarios' },
     { id: 'tipos', label: 'Tipos de miembros' },
     { id: 'agenda', label: 'Agenda de cultos' },
   ];
+  const sections = allSections.filter((item) => sectionsOverride.includes(item.id));
 
   return (
     <div className="stack" style={{ gap: 20 }}>
-      <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-        {sections.map((item) => (
-          <button
-            key={item.id}
-            className={`btn ${section === item.id ? 'btn-primary' : 'btn-ghost'} btn-sm`}
-            type="button"
-            onClick={() => setSection(item.id)}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
+      {sections.length > 1 && (
+        <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+          {sections.map((item) => (
+            <button
+              key={item.id}
+              className={`btn ${section === item.id ? 'btn-primary' : 'btn-ghost'} btn-sm`}
+              type="button"
+              onClick={() => setSection(item.id)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {section === 'seguridad' && (
         <div className="card" style={{ padding: 20 }}>

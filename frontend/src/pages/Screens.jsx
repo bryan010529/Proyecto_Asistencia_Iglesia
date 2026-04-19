@@ -22,6 +22,7 @@ const EMPTY_VISITOR_FORM = {
   celula: '',
   tipoMiembroId: '',
 };
+const BULK_IMPORT_HEADERS = ['nombre', 'cedula', 'correo', 'celula', 'rol', 'tipoMiembro'];
 
 function getErrorMessage(error, fallback) {
   return error?.response?.data?.error || fallback;
@@ -71,6 +72,52 @@ function buildDownloadFilename(response, fallback) {
   const disposition = response.headers['content-disposition'] || '';
   const match = disposition.match(/filename="([^"]+)"/);
   return match ? match[1] : fallback;
+}
+
+function parseCsvLine(line) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    const next = line[index + 1];
+
+    if (char === '"' && inQuotes && next === '"') {
+      current += '"';
+      index += 1;
+      continue;
+    }
+
+    if (char === '"') {
+      inQuotes = !inQuotes;
+      continue;
+    }
+
+    if (char === ',' && !inQuotes) {
+      result.push(current.trim());
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  result.push(current.trim());
+  return result;
+}
+
+function downloadBulkTemplate() {
+  const csv = `${BULK_IMPORT_HEADERS.join(',')}\nMaría Pérez,00112345678,maria@correo.com,Célula 1,Miembro,Damas\nJuan Díaz,00112345679,juan@correo.com,Célula 2,Líder,Caballeros`;
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = 'plantilla-miembros.csv';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
 }
 
 async function downloadReport(params, fallbackFilename) {
@@ -937,6 +984,178 @@ export function MembersScreen({ toast }) {
           </div>
         )}
       </Modal>
+    </div>
+  );
+}
+
+// ---------- Herramientas ----------
+export function ToolsScreen({ toast }) {
+  const [bulkRows, setBulkRows] = useState([]);
+  const [bulkFileName, setBulkFileName] = useState('');
+  const [bulkUploading, setBulkUploading] = useState(false);
+
+  const { data: memberTypes = [] } = useApi(async () => {
+    const response = await api.get('/tipos-miembro');
+    return response.data.data || [];
+  }, { initialData: [] });
+
+  async function handleBulkFileChange(event) {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    try {
+      const content = await file.text();
+      const lines = content
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+
+      if (!lines.length) {
+        throw new Error('El archivo está vacío');
+      }
+
+      const headers = parseCsvLine(lines[0]).map((item) => item.trim());
+      const normalizedHeaders = headers.map((item) => item.toLowerCase());
+
+      if (BULK_IMPORT_HEADERS.some((header) => !normalizedHeaders.includes(header))) {
+        throw new Error('La plantilla debe incluir: nombre, cedula, correo, celula, rol, tipoMiembro');
+      }
+
+      const rows = lines.slice(1).map((line, index) => {
+        const values = parseCsvLine(line);
+        const rowData = Object.fromEntries(headers.map((header, colIndex) => [header, values[colIndex] || '']));
+        const tipo = memberTypes.find(
+          (item) => item.nombre.toLowerCase() === String(rowData.tipoMiembro || '').trim().toLowerCase()
+        );
+
+        return {
+          row: index + 2,
+          nombre: rowData.nombre?.trim() || '',
+          cedula: rowData.cedula?.trim() || '',
+          correo: rowData.correo?.trim() || '',
+          celula: rowData.celula?.trim() || '',
+          rol: rowData.rol?.trim() || 'Miembro',
+          tipoMiembro: rowData.tipoMiembro?.trim() || '',
+          tipoMiembroId: tipo ? Number(tipo.id) : undefined,
+        };
+      }).filter((item) => item.nombre);
+
+      setBulkRows(rows);
+      setBulkFileName(file.name);
+    } catch (error) {
+      toast({
+        type: 'error',
+        title: 'No se pudo leer el CSV',
+        msg: error.message || 'Verifica la plantilla e intenta nuevamente.',
+      });
+    } finally {
+      event.target.value = '';
+    }
+  }
+
+  async function submitBulkImport() {
+    if (!bulkRows.length) {
+      return;
+    }
+
+    setBulkUploading(true);
+
+    try {
+      const payload = bulkRows.map((item) => ({
+        nombre: item.nombre,
+        cedula: item.cedula || undefined,
+        correo: item.correo || undefined,
+        celula: item.celula || undefined,
+        rol: item.rol || 'Miembro',
+        tipoMiembroId: item.tipoMiembroId,
+      }));
+
+      const response = await api.post('/miembros/carga-masiva', { miembros: payload });
+      const result = response.data.data;
+
+      toast({
+        type: result.errores ? 'error' : 'success',
+        title: 'Carga masiva procesada',
+        msg: `${result.creados} creados, ${result.errores} con error.`,
+      });
+
+      setBulkRows([]);
+      setBulkFileName('');
+    } catch (error) {
+      toast({
+        type: 'error',
+        title: 'No se pudo importar el archivo',
+        msg: getErrorMessage(error, 'Revisa la plantilla y vuelve a intentar.'),
+      });
+    } finally {
+      setBulkUploading(false);
+    }
+  }
+
+  return (
+    <div className="stack" style={{ gap: 20 }}>
+      <div className="card" style={{ padding: 20 }}>
+        <div className="row" style={{ justifyContent: 'space-between', marginBottom: 16, alignItems: 'center' }}>
+          <div>
+            <div className="card-title" style={{ marginBottom: 4 }}>Carga masiva de miembros</div>
+            <p className="muted" style={{ margin: 0 }}>
+              Importa miembros desde CSV y descarga una plantilla base con el formato esperado.
+            </p>
+          </div>
+          <Button variant="secondary" icon="download" onClick={downloadBulkTemplate}>
+            Descargar plantilla
+          </Button>
+        </div>
+
+        <div className="stack">
+          <div className="field">
+            <label>Archivo CSV</label>
+            <input className="inp" type="file" accept=".csv" onChange={handleBulkFileChange} />
+            <div className="helper">
+              Encabezados requeridos: <code>nombre,cedula,correo,celula,rol,tipoMiembro</code>
+            </div>
+          </div>
+
+          <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+            <span className="muted">{bulkFileName || 'Ningún archivo cargado'}</span>
+            <Button variant="primary" icon="upload" onClick={submitBulkImport} disabled={!bulkRows.length || bulkUploading}>
+              {bulkUploading ? 'Importando...' : 'Importar archivo'}
+            </Button>
+          </div>
+
+          {bulkRows.length > 0 && (
+            <>
+              <div className="muted">Vista previa: {bulkRows.length} filas</div>
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>Fila</th>
+                    <th>Nombre</th>
+                    <th>Rol</th>
+                    <th>Tipo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bulkRows.slice(0, 8).map((row) => (
+                    <tr key={row.row}>
+                      <td>{row.row}</td>
+                      <td>{row.nombre}</td>
+                      <td>{row.rol}</td>
+                      <td>{row.tipoMiembro || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {bulkRows.length > 8 && (
+                <div className="muted">Se mostrarán las primeras 8 filas en la vista previa.</div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

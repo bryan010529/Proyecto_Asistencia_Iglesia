@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Sidebar, Topbar } from './components/Shell';
+import AppSidebar from './components/AppSidebar';
+import { Topbar } from './components/Shell';
 import { ToastStack, useToasts } from './components/Primitives';
 import { useAuth } from './context/AuthContext';
-import { AttendanceScreen, LoginScreen, MembersScreen, ReportsScreen } from './pages/Screens';
+import { AttendanceScreen, LoginScreen, MembersScreen, ReportsScreen, ToolsScreen } from './pages/Screens';
 import SettingsScreen from './pages/SettingsScreen';
 
 export default function App() {
@@ -55,6 +56,16 @@ export default function App() {
       crumbs: 'Directorio general',
       el: <MembersScreen toast={push} />,
     },
+    agenda: {
+      title: 'Agenda de cultos',
+      crumbs: 'Planificación mensual',
+      el: <SettingsScreen toast={push} initialSection="agenda" sectionsOverride={['agenda']} />,
+    },
+    herramientas: {
+      title: 'Herramientas',
+      crumbs: 'Importación y utilidades',
+      el: <ToolsScreen toast={push} />,
+    },
     reportes: {
       title: 'Reportes',
       crumbs: 'Indicadores y exportación',
@@ -63,7 +74,12 @@ export default function App() {
     ajustes: {
       title: 'Ajustes',
       crumbs: 'Seguridad y usuarios',
-      el: <SettingsScreen toast={push} />,
+      el: <SettingsScreen toast={push} initialSection="seguridad" sectionsOverride={['seguridad', 'usuarios', 'tipos']} />,
+    },
+    'ajustes-tipos': {
+      title: 'Tipos de miembros',
+      crumbs: 'Submenú de ajustes',
+      el: <SettingsScreen toast={push} initialSection="tipos" sectionsOverride={['seguridad', 'usuarios', 'tipos']} />,
     },
   };
 
@@ -80,7 +96,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <Sidebar current={screen} onNav={setScreen} user={user} />
+      <AppSidebar current={screen} onNav={setScreen} user={user} />
       <Topbar title={currentScreen.title} crumbs={currentScreen.crumbs} time={timeStr} />
       <main className="main">{currentScreen.el}</main>
       <ToastStack toasts={toasts} onDismiss={dismiss} />

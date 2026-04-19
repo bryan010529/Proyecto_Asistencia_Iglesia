@@ -104,9 +104,33 @@ const deleteValidations = [
   validate,
 ];
 
+const bulkValidations = [
+  body('miembros')
+    .isArray({ min: 1 })
+    .withMessage('Debes enviar al menos un miembro para importar'),
+  body('miembros.*.nombre')
+    .trim()
+    .notEmpty()
+    .withMessage('Cada fila debe tener nombre'),
+  body('miembros.*.rol')
+    .optional()
+    .isIn(['Miembro', 'Líder', 'Visitante', 'Pastor'])
+    .withMessage('El rol no es válido'),
+  body('miembros.*.correo')
+    .optional({ values: 'falsy' })
+    .isEmail()
+    .withMessage('El correo no es válido'),
+  body('miembros.*.tipoMiembroId')
+    .optional({ values: 'falsy' })
+    .isInt({ gt: 0 })
+    .withMessage('El tipo de miembro debe ser válido'),
+  validate,
+];
+
 router.use(authMiddleware);
 
 router.get('/', listValidations, miembrosController.getAll);
+router.post('/carga-masiva', bulkValidations, miembrosController.bulkCreate);
 router.get('/:id/historial-estados', idValidation, miembrosController.getStatusHistory);
 router.get('/:id', idValidation, miembrosController.getById);
 router.post('/', createValidations, miembrosController.create);

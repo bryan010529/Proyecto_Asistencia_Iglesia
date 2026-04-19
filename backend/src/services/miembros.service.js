@@ -366,7 +366,51 @@ async function getStatusHistory(id) {
   return normalizeRows(result).map(mapHistorialEstado);
 }
 
+async function bulkCreate(miembros, changedBy) {
+  await ensureMiembroSchema();
+
+  if (!Array.isArray(miembros) || !miembros.length) {
+    throw { status: 400, message: 'Debes enviar al menos un miembro para importar' };
+  }
+
+  const created = [];
+  const errors = [];
+
+  for (let index = 0; index < miembros.length; index += 1) {
+    const row = miembros[index];
+
+    try {
+      const miembro = await create({
+        nombre: row.nombre,
+        cedula: row.cedula,
+        correo: row.correo,
+        celula: row.celula,
+        rol: row.rol || 'Miembro',
+        tipoMiembroId: row.tipoMiembroId,
+        estado: row.estado,
+        razonInactivacion: row.razonInactivacion,
+      }, changedBy);
+
+      created.push(miembro);
+    } catch (error) {
+      errors.push({
+        row: index + 1,
+        nombre: row.nombre || null,
+        error: error.message || 'No se pudo importar el miembro',
+      });
+    }
+  }
+
+  return {
+    total: miembros.length,
+    creados: created.length,
+    errores: errors.length,
+    detalles: errors,
+  };
+}
+
 module.exports = {
+  bulkCreate,
   create,
   getAll,
   getById,

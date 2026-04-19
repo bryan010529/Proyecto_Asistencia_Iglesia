@@ -27,6 +27,15 @@ async function create(req, res, next) {
   }
 }
 
+async function bulkCreate(req, res, next) {
+  try {
+    const resultado = await miembrosService.bulkCreate(req.body.miembros, req.user.id);
+    res.status(201).json({ data: resultado });
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function update(req, res, next) {
   try {
     const miembro = await miembrosService.update(req.params.id, req.body, req.user.id);
@@ -58,6 +67,7 @@ async function getStatusHistory(req, res, next) {
 }
 
 module.exports = {
+  bulkCreate,
   getAll,
   getById,
   getStatusHistory,
