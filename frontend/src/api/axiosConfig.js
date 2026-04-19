@@ -19,10 +19,11 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      const hadToken = Boolean(localStorage.getItem('token'));
       localStorage.removeItem('token');
       localStorage.removeItem('user');
 
-      if (typeof unauthorizedHandler === 'function') {
+      if (hadToken && typeof unauthorizedHandler === 'function') {
         unauthorizedHandler();
       }
     }
