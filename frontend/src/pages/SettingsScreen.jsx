@@ -67,8 +67,7 @@ function buildCalendarDays(month, agenda) {
   }
 
   for (let day = 1; day <= totalDays; day += 1) {
-    const date = new Date(year, monthNumber - 1, day);
-    const dateKey = date.toISOString().slice(0, 10);
+    const dateKey = `${year}-${String(monthNumber).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     cells.push({
       fecha: dateKey,
       dia: day,

@@ -40,8 +40,25 @@ function getMonthBounds(month) {
   return { start, nextMonth };
 }
 
-function formatDate(date) {
-  return date.toISOString().slice(0, 10);
+function formatDate(value) {
+  if (!value) {
+    return '';
+  }
+
+  if (typeof value === 'string') {
+    return value.slice(0, 10);
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return String(value).slice(0, 10);
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function getDefaultActivity(dateString) {
@@ -215,7 +232,7 @@ function buildPreviousSnapshot(date, row) {
 
 async function getAgenda(month) {
   const rows = await getAgendaRows(month);
-  const rowsByDate = new Map(rows.map((row) => [formatDate(new Date(getValue(row, ['fecha', 'FECHA']))), row]));
+  const rowsByDate = new Map(rows.map((row) => [formatDate(getValue(row, ['fecha', 'FECHA'])), row]));
   const [year, monthNumber] = month.split('-').map(Number);
   const daysInMonth = new Date(year, monthNumber, 0).getDate();
   const days = [];
