@@ -2,6 +2,7 @@ const sequelize = require('../config/sequelize');
 const Asistencia = require('./asistencia.model');
 const Culto = require('./culto.model');
 const Miembro = require('./miembro.model');
+const Usuario = require('./usuario.model');
 
 // Importar modelos aquí a medida que se creen
 // const Usuario = require('./usuario.model');
@@ -13,4 +14,5 @@ module.exports = {
   sequelize,
   Culto,
   Miembro,
+  Usuario,
 };
