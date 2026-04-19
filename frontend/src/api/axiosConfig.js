@@ -19,9 +19,7 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      const requestHadAuth = Boolean(
-        error.config?.headers?.Authorization || error.config?.headers?.authorization
-      );
+      const requestHadAuth = Boolean(error.config?.headers?.get?.('Authorization'));
       localStorage.removeItem('token');
       localStorage.removeItem('user');
 
