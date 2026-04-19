@@ -74,6 +74,44 @@ async function login(correo, password) {
   };
 }
 
+async function changePassword(userId, currentPassword, newPassword) {
+  const result = await query(
+    `
+      SELECT id, passwordHash
+      FROM usuarios
+      WHERE id = ?
+    `,
+    [userId]
+  );
+
+  const usuario = getFirstRow(result);
+  const passwordHash = usuario
+    ? getValue(usuario, ['passwordHash', 'passwordhash', 'PASSWORDHASH'])
+    : undefined;
+
+  if (!usuario || !passwordHash) {
+    throw { status: 404, message: 'Usuario no encontrado' };
+  }
+
+  const passwordValida = await bcrypt.compare(currentPassword, passwordHash);
+
+  if (!passwordValida) {
+    throw { status: 401, message: 'La contraseña actual no es válida' };
+  }
+
+  const nuevoHash = await bcrypt.hash(newPassword, 10);
+
+  await query(
+    `
+      UPDATE usuarios
+      SET passwordHash = ?, updatedAt = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `,
+    [nuevoHash, userId]
+  );
+}
+
 module.exports = {
+  changePassword,
   login,
 };

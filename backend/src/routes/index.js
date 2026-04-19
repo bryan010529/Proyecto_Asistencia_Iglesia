@@ -4,6 +4,7 @@ const authRoutes = require('./auth.routes');
 const cultosRoutes = require('./cultos.routes');
 const miembrosRoutes = require('./miembros.routes');
 const reportesRoutes = require('./reportes.routes');
+const usuariosRoutes = require('./usuarios.routes');
 
 const router = Router();
 
@@ -13,6 +14,7 @@ router.use('/auth', authRoutes);
 router.use('/cultos', cultosRoutes);
 router.use('/miembros', miembrosRoutes);
 router.use('/reportes', reportesRoutes);
+router.use('/usuarios', usuariosRoutes);
 
 router.get('/', (req, res) => res.json({ message: 'API Asistencia Iglesia v1' }));
 
