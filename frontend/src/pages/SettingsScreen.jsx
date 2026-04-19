@@ -109,6 +109,7 @@ export default function SettingsScreen({
 }) {
   const { user } = useAuth();
   const [section, setSection] = useState(initialSection);
+  const sectionsKey = sectionsOverride.join('|');
   const [passwordForm, setPasswordForm] = useState(EMPTY_PASSWORD_FORM);
   const [savingPassword, setSavingPassword] = useState(false);
   const [userModalOpen, setUserModalOpen] = useState(false);
@@ -174,8 +175,11 @@ export default function SettingsScreen({
   );
 
   useEffect(() => {
-    setSection(initialSection);
-  }, [initialSection]);
+    const nextSection = sectionsOverride.includes(initialSection)
+      ? initialSection
+      : (sectionsOverride[0] || 'seguridad');
+    setSection(nextSection);
+  }, [initialSection, sectionsKey]);
 
   useEffect(() => {
     if (editingUser) {
