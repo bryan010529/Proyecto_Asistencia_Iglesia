@@ -4,52 +4,61 @@
 ✅ APROBADO
 
 ## Última tarea validada
-TASK-B08 — Registro de asistencia
+TASK-B09 — Reportes / KPIs
 
 ## Correcciones aplicadas
-Ninguna — código correcto.
+Ninguna — código de alta calidad.
 
 ## Próxima tarea
-**TASK-B09** — Reportes / KPIs
+**TASK-B10** — Exportación Excel / CSV
 
-### Archivos a crear:
-
-**`backend/src/services/reportes.service.js`**
-
-Función `getResumen(mes)` donde `mes` es formato `'YYYY-MM'`:
-- `asistenciaHoy`: total de asistencias registradas hoy (DATE = TODAY)
-- `miembrosActivos`: total de miembros con estado = 'activo'
-- `tasaAsistencia`: (asistenciaHoy / miembrosActivos * 100) redondeado 1 decimal; si miembrosActivos = 0, retornar 0
-- `visitantesNuevos`: total de asistentes con rol = 'Visitante' en cultos del mes indicado
-- `porCelula`: array `[{ celula, total }]` — miembros activos agrupados por célula
-- `semanal`: array `[{ semana, total }]` — asistencias agrupadas por semana del mes (semana 1..4)
-
-Usar queries SQL directas via `database.js`. Ejecutar todas las queries en paralelo con `Promise.all`.
-
-**`backend/src/controllers/reportes.controller.js`**
-- `getResumen(req, res, next)` → lee `req.query.mes` (default: mes actual en formato YYYY-MM), llama service, res.json({ data: resumen })
-
-**`backend/src/routes/reportes.routes.js`**
+### Instalar dependencia:
 ```
-GET /api/reportes/resumen?mes=YYYY-MM   (protegida)
+cd backend && npm install exceljs
 ```
-- Validar: mes opcional, si viene debe ser formato YYYY-MM con `matches(/^\d{4}-\d{2}$/)`
 
-**Registrar en `backend/src/routes/index.js`:**
+### Archivos a crear/modificar:
+
+**`backend/src/services/exportar.service.js`**
+
+Función `exportar(mes, formato)`:
+- `mes`: string `'YYYY-MM'`
+- `formato`: `'xlsx'` o `'csv'`
+- Query: todos los cultos del mes con sus asistentes (JOIN cultos + asistencias + miembros)
+- Para `xlsx`: usar `exceljs`, crear workbook con hoja "Asistencia", columnas: Fecha, Culto, Nombre, Cédula, Célula, Rol, Hora Registro
+- Para `csv`: construir string CSV manualmente con cabecera y filas separadas por coma
+- Retornar `{ buffer, filename, contentType }`
+  - xlsx: `contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'`
+  - csv: `contentType = 'text/csv'`
+
+**`backend/src/controllers/exportar.controller.js`**
 ```js
-const reportesRoutes = require('./reportes.routes');
-router.use('/reportes', reportesRoutes);
+async function exportar(req, res, next) {
+  try {
+    const mes = req.query.mes || new Date().toISOString().slice(0, 7);
+    const formato = req.query.formato || 'xlsx';
+    const { buffer, filename, contentType } = await exportarService.exportar(mes, formato);
+    res.set('Content-Disposition', `attachment; filename="${filename}"`);
+    res.set('Content-Type', contentType);
+    res.send(buffer);
+  } catch (error) {
+    next(error);
+  }
+}
 ```
 
-### Cálculo del mes actual por defecto:
+**Agregar ruta en `backend/src/routes/reportes.routes.js`:**
 ```js
-const mes = req.query.mes || new Date().toISOString().slice(0, 7);
+const exportarController = require('../controllers/exportar.controller');
+// Agregar al router (protegida):
+router.get('/exportar', exportarValidations, exportarController.exportar);
 ```
+Validar: `formato` opcional, isIn(['xlsx', 'csv']); `mes` opcional, matches YYYY-MM.
 
 ### Convenciones:
-- Queries SQL directas via `require('../config/database').query`
-- `Promise.all` para ejecutar queries en paralelo
-- Sin console.log, errores como `{ error: 'mensaje' }`
+- Sin console.log
+- Errores como `{ error: 'mensaje' }`
+- Nombre de archivo: `asistencia-YYYY-MM.xlsx` o `asistencia-YYYY-MM.csv`
 
 ---
 *Última actualización: Claude Sonnet 4.6 — validación automática*
