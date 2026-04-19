@@ -4,47 +4,52 @@
 ✅ APROBADO
 
 ## Última tarea validada
-TASK-B07 — CRUD de Cultos
+TASK-B08 — Registro de asistencia
 
 ## Correcciones aplicadas
 Ninguna — código correcto.
 
 ## Próxima tarea
-**TASK-B08** — Registro de asistencia
+**TASK-B09** — Reportes / KPIs
 
 ### Archivos a crear:
 
-**`backend/src/services/asistencia.service.js`**
-- `registrar({ miembroId, cultoId, registradoPor })` → INSERT en asistencias; lanza `{ status: 409, message: 'Asistencia ya registrada' }` si el miembro ya tiene registro para ese culto
-- `getByCulto(cultoId)` → lista de asistentes de un culto con datos del miembro (JOIN con miembros)
-- `anular(id)` → DELETE por id; lanza `{ status: 404, message: 'Registro no encontrado' }` si no existe
+**`backend/src/services/reportes.service.js`**
 
-**`backend/src/controllers/asistencia.controller.js`**
-- `registrar` → res.status(201).json({ data: registro })
-- `getByCulto` → res.json({ data: lista })
-- `anular` → res.json({ data: { message: 'Registro anulado' } })
-- Todos pasan errores a `next(error)`
+Función `getResumen(mes)` donde `mes` es formato `'YYYY-MM'`:
+- `asistenciaHoy`: total de asistencias registradas hoy (DATE = TODAY)
+- `miembrosActivos`: total de miembros con estado = 'activo'
+- `tasaAsistencia`: (asistenciaHoy / miembrosActivos * 100) redondeado 1 decimal; si miembrosActivos = 0, retornar 0
+- `visitantesNuevos`: total de asistentes con rol = 'Visitante' en cultos del mes indicado
+- `porCelula`: array `[{ celula, total }]` — miembros activos agrupados por célula
+- `semanal`: array `[{ semana, total }]` — asistencias agrupadas por semana del mes (semana 1..4)
 
-**`backend/src/routes/asistencia.routes.js`**
+Usar queries SQL directas via `database.js`. Ejecutar todas las queries en paralelo con `Promise.all`.
+
+**`backend/src/controllers/reportes.controller.js`**
+- `getResumen(req, res, next)` → lee `req.query.mes` (default: mes actual en formato YYYY-MM), llama service, res.json({ data: resumen })
+
+**`backend/src/routes/reportes.routes.js`**
 ```
-POST   /api/asistencia              — registrar asistencia (protegida)
-GET    /api/asistencia/:cultoId     — lista de asistentes de un culto (protegida)
-DELETE /api/asistencia/:id          — anular registro (protegida)
+GET /api/reportes/resumen?mes=YYYY-MM   (protegida)
 ```
-- Todas protegidas con `authMiddleware`
-- Validar: miembroId y cultoId requeridos + isInt, body registradoPor opcional (si no viene, usar req.user.id del JWT)
+- Validar: mes opcional, si viene debe ser formato YYYY-MM con `matches(/^\d{4}-\d{2}$/)`
 
 **Registrar en `backend/src/routes/index.js`:**
 ```js
-const asistenciaRoutes = require('./asistencia.routes');
-router.use('/asistencia', asistenciaRoutes);
+const reportesRoutes = require('./reportes.routes');
+router.use('/reportes', reportesRoutes);
+```
+
+### Cálculo del mes actual por defecto:
+```js
+const mes = req.query.mes || new Date().toISOString().slice(0, 7);
 ```
 
 ### Convenciones:
 - Queries SQL directas via `require('../config/database').query`
-- horaRegistro: CURRENT_TIMESTAMP en el INSERT
-- registradoPor: usar `req.user.id` del token JWT si no viene en el body
-- Errores como `{ error: 'mensaje' }`, sin console.log
+- `Promise.all` para ejecutar queries en paralelo
+- Sin console.log, errores como `{ error: 'mensaje' }`
 
 ---
 *Última actualización: Claude Sonnet 4.6 — validación automática*
