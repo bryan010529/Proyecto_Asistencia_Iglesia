@@ -23,11 +23,6 @@ const Culto = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
-    createdAt: {
-      type: DataTypes.DATE,
-      allowNull: false,
-      defaultValue: DataTypes.NOW,
-    },
   },
   {
     tableName: 'cultos',
