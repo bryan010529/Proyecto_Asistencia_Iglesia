@@ -1,0 +1,126 @@
+/* ==========================================================================
+   LINAJE SANTO — DESIGN TOKENS
+   Sistema de Asistencia Iglesia
+   ========================================================================== */
+
+:root {
+  /* ----- BRAND COLORS ----- */
+  --ls-primary:          #2E75B6;
+  --ls-primary-hover:    #255E92;
+  --ls-primary-active:   #1D4A74;
+  --ls-primary-soft:     #E7F0F9;
+  --ls-primary-softer:   #F3F8FC;
+
+  --ls-secondary:        #385723;
+  --ls-secondary-hover:  #2C451B;
+  --ls-secondary-active: #203313;
+  --ls-secondary-soft:   #E7EDE1;
+
+  /* ----- SEMANTIC STATUS ----- */
+  --ls-success:          #28A745;
+  --ls-success-hover:    #1F8637;
+  --ls-success-soft:     #E3F5E8;
+
+  --ls-danger:           #DC3545;
+  --ls-danger-hover:     #B52A38;
+  --ls-danger-soft:      #FBE4E7;
+
+  --ls-warning:          #FFC107;
+  --ls-warning-hover:    #D9A406;
+  --ls-warning-soft:     #FFF6D9;
+
+  --ls-info:             #17A2B8;
+  --ls-info-soft:        #E1F5F8;
+
+  /* ----- NEUTRALS / SURFACES ----- */
+  --ls-bg:               #F5F5F5;
+  --ls-surface:          #FFFFFF;
+  --ls-surface-alt:      #FAFAFA;
+  --ls-surface-sunken:   #EEEEEE;
+
+  --ls-border:           #E0E0E0;
+  --ls-border-strong:    #CCCCCC;
+  --ls-divider:          #EBEBEB;
+
+  --ls-header-dark:      #2E75B6;
+  --ls-header-darker:    #1D4A74;
+
+  /* ----- TEXT ----- */
+  --ls-fg:               #333333;
+  --ls-fg-muted:         #666666;
+  --ls-fg-subtle:        #8A8A8A;
+  --ls-fg-disabled:      #B5B5B5;
+  --ls-fg-on-primary:    #FFFFFF;
+  --ls-fg-on-secondary:  #FFFFFF;
+
+  /* ----- TYPOGRAPHY ----- */
+  --ls-font-sans: Arial, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --ls-font-mono: "SF Mono", Menlo, Consolas, "Courier New", monospace;
+
+  --ls-text-xs:   12px;
+  --ls-text-sm:   13px;
+  --ls-text-base: 14px;
+  --ls-text-md:   16px;
+  --ls-text-lg:   18px;
+  --ls-text-xl:   22px;
+  --ls-text-2xl:  28px;
+  --ls-text-3xl:  34px;
+
+  --ls-lh-tight:   1.2;
+  --ls-lh-snug:    1.35;
+  --ls-lh-normal:  1.5;
+  --ls-lh-relaxed: 1.65;
+
+  --ls-fw-regular: 400;
+  --ls-fw-medium:  500;
+  --ls-fw-bold:    700;
+
+  /* ----- SPACING (4px base) ----- */
+  --ls-space-1:  4px;
+  --ls-space-2:  8px;
+  --ls-space-3:  12px;
+  --ls-space-4:  16px;
+  --ls-space-5:  20px;
+  --ls-space-6:  24px;
+  --ls-space-8:  32px;
+  --ls-space-10: 40px;
+  --ls-space-12: 48px;
+  --ls-space-16: 64px;
+
+  /* ----- RADII ----- */
+  --ls-radius-sm: 4px;
+  --ls-radius-md: 6px;
+  --ls-radius-lg: 8px;
+  --ls-radius-pill: 999px;
+
+  /* ----- SHADOWS / ELEVATION ----- */
+  --ls-shadow-xs: 0 1px 2px rgba(17, 24, 39, 0.04);
+  --ls-shadow-sm: 0 1px 3px rgba(17, 24, 39, 0.08), 0 1px 2px rgba(17, 24, 39, 0.04);
+  --ls-shadow-md: 0 4px 12px rgba(17, 24, 39, 0.08), 0 2px 4px rgba(17, 24, 39, 0.04);
+  --ls-shadow-lg: 0 10px 24px rgba(17, 24, 39, 0.10), 0 4px 8px rgba(17, 24, 39, 0.05);
+  --ls-shadow-focus: 0 0 0 3px rgba(46, 117, 182, 0.25);
+  --ls-shadow-focus-danger: 0 0 0 3px rgba(220, 53, 69, 0.25);
+
+  /* ----- TRANSITIONS ----- */
+  --ls-transition-fast:   120ms ease-out;
+  --ls-transition-normal: 180ms ease-out;
+  --ls-transition-slow:   260ms ease-out;
+
+  /* ----- LAYOUT ----- */
+  --ls-sidebar-w: 240px;
+  --ls-topbar-h:  56px;
+  --ls-container-max: 1280px;
+}
+
+/* ========== SEMANTIC TYPE CLASSES ========== */
+
+.ls-h1 { font-family: var(--ls-font-sans); font-size: var(--ls-text-2xl); font-weight: var(--ls-fw-bold); line-height: var(--ls-lh-tight); color: var(--ls-fg); letter-spacing: -0.01em; }
+.ls-h2 { font-family: var(--ls-font-sans); font-size: var(--ls-text-xl);  font-weight: var(--ls-fw-bold); line-height: var(--ls-lh-snug); color: var(--ls-fg); }
+.ls-h3 { font-family: var(--ls-font-sans); font-size: var(--ls-text-lg);  font-weight: var(--ls-fw-bold); line-height: var(--ls-lh-snug); color: var(--ls-fg); }
+.ls-body        { font-family: var(--ls-font-sans); font-size: var(--ls-text-base); font-weight: var(--ls-fw-regular); line-height: var(--ls-lh-normal); color: var(--ls-fg); }
+.ls-body-strong { font-family: var(--ls-font-sans); font-size: var(--ls-text-base); font-weight: var(--ls-fw-bold);    line-height: var(--ls-lh-normal); color: var(--ls-fg); }
+.ls-small       { font-family: var(--ls-font-sans); font-size: var(--ls-text-xs);   font-weight: var(--ls-fw-regular); line-height: var(--ls-lh-snug);   color: var(--ls-fg-muted); }
+.ls-label       { font-family: var(--ls-font-sans); font-size: var(--ls-text-xs);   font-weight: var(--ls-fw-medium);  line-height: var(--ls-lh-snug);   color: var(--ls-fg-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.ls-button-text { font-family: var(--ls-font-sans); font-size: var(--ls-text-base); font-weight: var(--ls-fw-medium);  line-height: 1; }
+.ls-metric      { font-family: var(--ls-font-sans); font-size: var(--ls-text-3xl);  font-weight: var(--ls-fw-bold);    line-height: var(--ls-lh-tight);  color: var(--ls-fg); font-variant-numeric: tabular-nums; }
+.ls-mono        { font-family: var(--ls-font-mono); font-size: var(--ls-text-sm);   color: var(--ls-fg); }
