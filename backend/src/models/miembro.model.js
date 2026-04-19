@@ -46,16 +46,6 @@ const Miembro = sequelize.define(
       allowNull: false,
       defaultValue: 'activo',
     },
-    createdAt: {
-      type: DataTypes.DATE,
-      allowNull: false,
-      defaultValue: DataTypes.NOW,
-    },
-    updatedAt: {
-      type: DataTypes.DATE,
-      allowNull: false,
-      defaultValue: DataTypes.NOW,
-    },
   },
   {
     tableName: 'miembros',
