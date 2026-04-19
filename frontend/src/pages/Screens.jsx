@@ -1069,7 +1069,7 @@ export function ToolsScreen({ toast }) {
         <div className="stack">
           <div className="field">
             <label>Archivo Excel</label>
-            <input className="inp" type="file" accept=".xlsx,.xls" onChange={handleBulkFileChange} />
+            <input className="inp" type="file" accept=".xlsx" onChange={handleBulkFileChange} />
             <div className="helper">
               Usa la hoja <code>Miembros</code> de la plantilla y no cambies los encabezados.
             </div>
