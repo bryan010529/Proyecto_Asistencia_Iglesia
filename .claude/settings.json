@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git pull *)",
+      "Bash(git fetch *)",
+      "Bash(git rev-parse *)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(git branch *)",
+      "Bash(git checkout *)",
+      "Bash(git merge *)",
+      "Bash(git stash *)",
+      "Bash(echo * > /tmp/*)",
+      "Bash(cat /tmp/*)",
+      "Bash(mkdir *)",
+      "Bash(npm install *)",
+      "Bash(npm install)",
+      "Bash(npm run *)",
+      "Bash(npm run lint *)",
+      "Bash(npm run lint)",
+      "Bash(npm run typecheck)",
+      "Bash(npm test *)",
+      "Bash(npm test)",
+      "Bash(gh repo *)",
+      "Bash(gh pr *)",
+      "Bash(gh issue *)",
+      "Bash(gh run *)",
+      "Bash(gh auth *)",
+      "Bash(brew install *)",
+      "Bash(brew info *)"
+    ],
+    "deny": []
+  }
+}
