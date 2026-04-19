@@ -22,11 +22,37 @@ const idValidation = [
 
 const createValidations = [
   body('nombre').trim().notEmpty().withMessage('El nombre es requerido'),
-  body('cedula').trim().notEmpty().withMessage('La cédula es requerida'),
+  body('rol')
+    .optional()
+    .isIn(['Miembro', 'Líder', 'Visitante', 'Pastor'])
+    .withMessage('El rol no es válido'),
+  body('estado')
+    .optional()
+    .isIn(['activo', 'inactivo'])
+    .withMessage('El estado debe ser activo o inactivo'),
+  body('cedula').custom((value, { req }) => {
+    if (value && String(value).trim()) {
+      return true;
+    }
+
+    if (req.body.rol === 'Visitante') {
+      return true;
+    }
+
+    throw new Error('La cédula es requerida');
+  }),
   body('correo')
     .optional({ values: 'falsy' })
     .isEmail()
     .withMessage('El correo no es válido'),
+  body('razonInactivacion')
+    .optional({ values: 'falsy' })
+    .isString()
+    .withMessage('La razón de inactivación debe ser texto'),
+  body('tipoMiembroId')
+    .optional({ values: 'falsy' })
+    .isInt({ gt: 0 })
+    .withMessage('El tipo de miembro debe ser válido'),
   validate,
 ];
 
@@ -34,10 +60,26 @@ const updateValidations = [
   param('id').isInt({ gt: 0 }).withMessage('El id debe ser un entero válido'),
   body('nombre').optional().trim().notEmpty().withMessage('El nombre no puede estar vacío'),
   body('cedula').optional().trim().notEmpty().withMessage('La cédula no puede estar vacía'),
+  body('rol')
+    .optional()
+    .isIn(['Miembro', 'Líder', 'Visitante', 'Pastor'])
+    .withMessage('El rol no es válido'),
+  body('estado')
+    .optional()
+    .isIn(['activo', 'inactivo'])
+    .withMessage('El estado debe ser activo o inactivo'),
   body('correo')
     .optional({ values: 'falsy' })
     .isEmail()
     .withMessage('El correo no es válido'),
+  body('razonInactivacion')
+    .optional({ values: 'falsy' })
+    .isString()
+    .withMessage('La razón de inactivación debe ser texto'),
+  body('tipoMiembroId')
+    .optional({ values: 'falsy' })
+    .isInt({ gt: 0 })
+    .withMessage('El tipo de miembro debe ser válido'),
   validate,
 ];
 
@@ -46,15 +88,29 @@ const listValidations = [
     .optional()
     .isIn(['activo', 'inactivo'])
     .withMessage('El estado debe ser activo o inactivo'),
+  query('tipoMiembroId')
+    .optional()
+    .isInt({ gt: 0 })
+    .withMessage('El tipo de miembro debe ser válido'),
+  validate,
+];
+
+const deleteValidations = [
+  param('id').isInt({ gt: 0 }).withMessage('El id debe ser un entero válido'),
+  body('razon')
+    .optional({ values: 'falsy' })
+    .isString()
+    .withMessage('La razón debe ser texto'),
   validate,
 ];
 
 router.use(authMiddleware);
 
 router.get('/', listValidations, miembrosController.getAll);
+router.get('/:id/historial-estados', idValidation, miembrosController.getStatusHistory);
 router.get('/:id', idValidation, miembrosController.getById);
 router.post('/', createValidations, miembrosController.create);
 router.put('/:id', updateValidations, miembrosController.update);
-router.delete('/:id', idValidation, miembrosController.remove);
+router.delete('/:id', deleteValidations, miembrosController.remove);
 
 module.exports = router;

@@ -11,6 +11,16 @@ const EMPTY_MEMBER_FORM = {
   correo: '',
   celula: '',
   rol: 'Miembro',
+  tipoMiembroId: '',
+  estado: 'activo',
+  razonInactivacion: '',
+};
+const EMPTY_VISITOR_FORM = {
+  nombre: '',
+  cedula: '',
+  correo: '',
+  celula: '',
+  tipoMiembroId: '',
 };
 
 function getErrorMessage(error, fallback) {
@@ -83,8 +93,8 @@ async function downloadReport(params, fallbackFilename) {
 // ---------- Login ----------
 export function LoginScreen({ toast }) {
   const { login } = useAuth();
-  const [correo, setCorreo] = useState('pastor@linajesanto.org');
-  const [password, setPassword] = useState('');
+  const [correo, setCorreo] = useState('admin@iglesia.local');
+  const [password, setPassword] = useState('admin123');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -116,6 +126,9 @@ export function LoginScreen({ toast }) {
         <img src="/assets/logo.svg" alt="Linaje Santo" />
         <h1>Iniciar sesión</h1>
         <p className="sub">Accede al sistema de asistencia.</p>
+        <p className="muted" style={{ fontSize: 13 }}>
+          Demo: <b>admin@iglesia.local</b> / <b>admin123</b>
+        </p>
         <div className="stack">
           <Input
             label="Correo"
@@ -149,6 +162,12 @@ export function AttendanceScreen({ toast }) {
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [registeringId, setRegisteringId] = useState(null);
   const [registeredIds, setRegisteredIds] = useState(new Set());
+  const [visitorModalOpen, setVisitorModalOpen] = useState(false);
+  const [visitorForm, setVisitorForm] = useState(EMPTY_VISITOR_FORM);
+  const { data: memberTypes = [] } = useApi(async () => {
+    const response = await api.get('/tipos-miembro');
+    return response.data.data || [];
+  }, { initialData: [] });
 
   const {
     data: culto,
@@ -194,6 +213,30 @@ export function AttendanceScreen({ toast }) {
     return () => clearTimeout(timeoutId);
   }, [query, toast]);
 
+  useEffect(() => {
+    setVisitorForm((current) => ({
+      ...current,
+      nombre: query,
+    }));
+  }, [query]);
+
+  useEffect(() => {
+    if (!memberTypes.length || visitorForm.tipoMiembroId) {
+      return;
+    }
+
+    const visitType = memberTypes.find((item) => /visita/i.test(item.nombre));
+
+    if (!visitType) {
+      return;
+    }
+
+    setVisitorForm((current) => ({
+      ...current,
+      tipoMiembroId: String(visitType.id),
+    }));
+  }, [memberTypes, visitorForm.tipoMiembroId]);
+
   async function registerAttendance(member) {
     if (!culto?.id || registeredIds.has(member.id)) {
       return;
@@ -216,6 +259,47 @@ export function AttendanceScreen({ toast }) {
       toast({
         type: 'error',
         title: 'No se pudo registrar',
+        msg: getErrorMessage(error, 'Intenta nuevamente.'),
+      });
+    } finally {
+      setRegisteringId(null);
+    }
+  }
+
+  async function createVisitorAndRegister() {
+    if (!culto?.id) {
+      return;
+    }
+
+    setRegisteringId('visitor');
+
+    try {
+      const createResponse = await api.post('/miembros', {
+        ...visitorForm,
+        rol: 'Visitante',
+        tipoMiembroId: visitorForm.tipoMiembroId ? Number(visitorForm.tipoMiembroId) : undefined,
+      });
+      const visitor = createResponse.data.data;
+
+      await api.post('/asistencia', {
+        miembroId: visitor.id,
+        cultoId: culto.id,
+      });
+
+      setMembers((current) => [visitor, ...current]);
+      setRegisteredIds((current) => new Set(current).add(visitor.id));
+      setVisitorModalOpen(false);
+      setVisitorForm(EMPTY_VISITOR_FORM);
+      setQuery('');
+      toast({
+        type: 'success',
+        title: 'Visitante agregado',
+        msg: `${visitor.nombre} quedó registrado en el culto.`,
+      });
+    } catch (error) {
+      toast({
+        type: 'error',
+        title: 'No se pudo agregar el visitante',
         msg: getErrorMessage(error, 'Intenta nuevamente.'),
       });
     } finally {
@@ -252,6 +336,26 @@ export function AttendanceScreen({ toast }) {
         </div>
       </div>
       {loadingMembers && <p className="muted">Buscando miembros...</p>}
+      {!loadingMembers && query && members.length === 0 && (
+        <div className="card" style={{ padding: 16, marginBottom: 12 }}>
+          <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+            <div>
+              <div style={{ fontWeight: 700 }}>No encontramos a "{query}"</div>
+              <div className="muted" style={{ fontSize: 13 }}>
+                Puedes agregarlo rápido como visitante y registrarlo solo para reportes.
+              </div>
+            </div>
+            <Button
+              variant="secondary"
+              icon="user-plus"
+              disabled={!culto}
+              onClick={() => setVisitorModalOpen(true)}
+            >
+              Agregar visitante
+            </Button>
+          </div>
+        </div>
+      )}
       <div className="stack" style={{ gap: 8 }}>
         {members.map((member) => {
           const isRegistered = registeredIds.has(member.id);
@@ -289,6 +393,81 @@ export function AttendanceScreen({ toast }) {
         <i data-lucide="info" style={{ width: 14, height: 14 }}></i>
         Presiona Enter para registrar el primer resultado.
       </div>
+
+      <Modal
+        open={visitorModalOpen}
+        title="Agregar visitante"
+        onClose={() => setVisitorModalOpen(false)}
+        footer={(
+          <>
+            <Button variant="ghost" onClick={() => setVisitorModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="primary"
+              onClick={createVisitorAndRegister}
+              disabled={!visitorForm.nombre || registeringId === 'visitor'}
+            >
+              {registeringId === 'visitor' ? 'Guardando...' : 'Agregar y registrar'}
+            </Button>
+          </>
+        )}
+      >
+        <div className="stack">
+          <Input
+            label="Nombre"
+            value={visitorForm.nombre}
+            onChange={(event) => setVisitorForm((current) => ({
+              ...current,
+              nombre: event.target.value,
+            }))}
+          />
+          <Input
+            label="Cédula opcional"
+            value={visitorForm.cedula}
+            helper="Si la dejas vacía, el sistema generará un identificador interno."
+            onChange={(event) => setVisitorForm((current) => ({
+              ...current,
+              cedula: event.target.value,
+            }))}
+          />
+          <Input
+            label="Correo opcional"
+            type="email"
+            value={visitorForm.correo}
+            onChange={(event) => setVisitorForm((current) => ({
+              ...current,
+              correo: event.target.value,
+            }))}
+          />
+          <Input
+            label="Célula opcional"
+            value={visitorForm.celula}
+            onChange={(event) => setVisitorForm((current) => ({
+              ...current,
+              celula: event.target.value,
+            }))}
+          />
+          <div className="field">
+            <label>Clasificación</label>
+            <select
+              className="inp"
+              value={visitorForm.tipoMiembroId}
+              onChange={(event) => setVisitorForm((current) => ({
+                ...current,
+                tipoMiembroId: event.target.value,
+              }))}
+            >
+              <option value="">Sin clasificación</option>
+              {memberTypes.filter((item) => item.activo).map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -297,12 +476,22 @@ export function AttendanceScreen({ toast }) {
 export function MembersScreen({ toast }) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('');
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingMember, setEditingMember] = useState(null);
   const [form, setForm] = useState(EMPTY_MEMBER_FORM);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteReason, setDeleteReason] = useState('');
+  const [historyTarget, setHistoryTarget] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  const { data: memberTypes = [] } = useApi(async () => {
+    const response = await api.get('/tipos-miembro');
+    return response.data.data || [];
+  }, { initialData: [] });
 
   const estado = useMemo(() => {
     if (filter === 'active') {
@@ -325,6 +514,7 @@ export function MembersScreen({ toast }) {
           params: {
             q: query || undefined,
             estado,
+            tipoMiembroId: typeFilter || undefined,
           },
         });
         setMembers(response.data.data || []);
@@ -340,7 +530,7 @@ export function MembersScreen({ toast }) {
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [estado, query, toast]);
+  }, [estado, query, toast, typeFilter]);
 
   useEffect(() => {
     if (editingMember) {
@@ -350,6 +540,9 @@ export function MembersScreen({ toast }) {
         correo: editingMember.correo || '',
         celula: editingMember.celula || '',
         rol: editingMember.rol || 'Miembro',
+        tipoMiembroId: editingMember.tipoMiembroId ? String(editingMember.tipoMiembroId) : '',
+        estado: editingMember.estado || 'activo',
+        razonInactivacion: editingMember.razonInactivacion || '',
       });
       return;
     }
@@ -362,6 +555,7 @@ export function MembersScreen({ toast }) {
       params: {
         q: query || undefined,
         estado,
+        tipoMiembroId: typeFilter || undefined,
       },
     });
     setMembers(response.data.data || []);
@@ -369,15 +563,21 @@ export function MembersScreen({ toast }) {
 
   async function saveMember() {
     try {
+      const payload = {
+        ...form,
+        tipoMiembroId: form.tipoMiembroId ? Number(form.tipoMiembroId) : undefined,
+        razonInactivacion: form.estado === 'inactivo' ? form.razonInactivacion : '',
+      };
+
       if (editingMember) {
-        await api.put(`/miembros/${editingMember.id}`, form);
+        await api.put(`/miembros/${editingMember.id}`, payload);
         toast({
           type: 'success',
           title: 'Miembro actualizado',
           msg: form.nombre,
         });
       } else {
-        await api.post('/miembros', form);
+        await api.post('/miembros', payload);
         toast({
           type: 'success',
           title: 'Miembro agregado',
@@ -399,13 +599,16 @@ export function MembersScreen({ toast }) {
 
   async function deleteMember() {
     try {
-      await api.delete(`/miembros/${deleteTarget.id}`);
+      await api.delete(`/miembros/${deleteTarget.id}`, {
+        data: { razon: deleteReason || undefined },
+      });
       toast({
         type: 'success',
         title: 'Miembro desactivado',
         msg: deleteTarget.nombre,
       });
       setDeleteTarget(null);
+      setDeleteReason('');
       await refreshMembers();
     } catch (error) {
       toast({
@@ -413,6 +616,24 @@ export function MembersScreen({ toast }) {
         title: 'No se pudo desactivar el miembro',
         msg: getErrorMessage(error, 'Intenta nuevamente.'),
       });
+    }
+  }
+
+  async function openHistory(member) {
+    setHistoryTarget(member);
+    setHistoryLoading(true);
+
+    try {
+      const response = await api.get(`/miembros/${member.id}/historial-estados`);
+      setHistory(response.data.data || []);
+    } catch (error) {
+      toast({
+        type: 'error',
+        title: 'No se pudo cargar el historial',
+        msg: getErrorMessage(error, 'Intenta nuevamente.'),
+      });
+    } finally {
+      setHistoryLoading(false);
     }
   }
 
@@ -471,6 +692,17 @@ export function MembersScreen({ toast }) {
             </button>
           ))}
         </div>
+        <div className="field" style={{ minWidth: 220 }}>
+          <label>Tipo de miembro</label>
+          <select className="inp" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}>
+            <option value="">Todos los tipos</option>
+            {memberTypes.filter((item) => item.activo).map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.nombre}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
       {loading && <p className="muted" style={{ marginBottom: 12 }}>Cargando miembros...</p>}
       <div style={{ background: '#fff', border: '1px solid var(--ls-border)', borderRadius: 8, overflow: 'hidden', boxShadow: 'var(--ls-shadow-sm)' }}>
@@ -481,6 +713,7 @@ export function MembersScreen({ toast }) {
               <th>Cédula</th>
               <th>Célula</th>
               <th>Rol</th>
+              <th>Tipo</th>
               <th>Creado</th>
               <th>Estado</th>
               <th></th>
@@ -498,6 +731,7 @@ export function MembersScreen({ toast }) {
                 <td className="tnum muted">{member.cedula}</td>
                 <td>{member.celula || '—'}</td>
                 <td>{member.rol}</td>
+                <td>{member.tipoMiembroNombre || '—'}</td>
                 <td className="tnum">{formatDate(member.createdAt)}</td>
                 <td>
                   {member.estado === 'activo'
@@ -506,6 +740,13 @@ export function MembersScreen({ toast }) {
                 </td>
                 <td>
                   <div className="row" style={{ gap: 4, justifyContent: 'flex-end' }}>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      type="button"
+                      onClick={() => openHistory(member)}
+                    >
+                      <i data-lucide="history"></i>
+                    </button>
                     <button
                       className="btn btn-ghost btn-sm"
                       type="button"
@@ -519,7 +760,10 @@ export function MembersScreen({ toast }) {
                     <button
                       className="btn btn-ghost btn-sm"
                       type="button"
-                      onClick={() => setDeleteTarget(member)}
+                      onClick={() => {
+                        setDeleteTarget(member);
+                        setDeleteReason(member.razonInactivacion || '');
+                      }}
                     >
                       <i data-lucide="trash-2"></i>
                     </button>
@@ -590,6 +834,49 @@ export function MembersScreen({ toast }) {
               <option value="Pastor">Pastor</option>
             </select>
           </div>
+          <div className="field">
+            <label>Tipo de miembro</label>
+            <select
+              className="inp"
+              value={form.tipoMiembroId}
+              onChange={(event) => setForm((current) => ({ ...current, tipoMiembroId: event.target.value }))}
+            >
+              <option value="">Sin clasificación</option>
+              {memberTypes.filter((item) => item.activo).map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
+          {editingMember && (
+            <div className="field">
+              <label>Estado</label>
+              <select
+                className="inp"
+                value={form.estado}
+                onChange={(event) => setForm((current) => ({ ...current, estado: event.target.value }))}
+              >
+                <option value="activo">Activo</option>
+                <option value="inactivo">Inactivo</option>
+              </select>
+            </div>
+          )}
+          {form.estado === 'inactivo' && (
+            <div className="field">
+              <label>Razón de inactivación</label>
+              <textarea
+                className="inp"
+                rows={3}
+                value={form.razonInactivacion}
+                onChange={(event) => setForm((current) => ({
+                  ...current,
+                  razonInactivacion: event.target.value,
+                }))}
+                placeholder="Motivo del cambio de estado"
+              />
+            </div>
+          )}
         </div>
       </Modal>
 
@@ -604,7 +891,51 @@ export function MembersScreen({ toast }) {
           </>
         )}
       >
-        ¿Deseas marcar como inactivo a <b>{deleteTarget?.nombre}</b>?
+        <div className="stack">
+          <div>
+            ¿Deseas marcar como inactivo a <b>{deleteTarget?.nombre}</b>?
+          </div>
+          <div className="field">
+            <label>Razón de inactivación</label>
+            <textarea
+              className="inp"
+              rows={3}
+              value={deleteReason}
+              onChange={(event) => setDeleteReason(event.target.value)}
+              placeholder="Motivo opcional"
+            />
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={Boolean(historyTarget)}
+        title={`Historial de estado${historyTarget ? ` · ${historyTarget.nombre}` : ''}`}
+        onClose={() => {
+          setHistoryTarget(null);
+          setHistory([]);
+        }}
+        footer={<Button variant="primary" onClick={() => setHistoryTarget(null)}>Cerrar</Button>}
+      >
+        {historyLoading && <p className="muted">Cargando historial...</p>}
+        {!historyLoading && history.length === 0 && (
+          <p className="muted">Todavía no hay cambios de estado registrados para este miembro.</p>
+        )}
+        {!historyLoading && history.length > 0 && (
+          <div className="stack" style={{ gap: 10 }}>
+            {history.map((item) => (
+              <div key={item.id} className="card" style={{ padding: 14 }}>
+                <div className="row" style={{ justifyContent: 'space-between', marginBottom: 6 }}>
+                  <strong>{item.estadoAnterior || 'sin estado'} → {item.estadoNuevo}</strong>
+                  <span className="muted">{formatDate(item.createdAt)} {formatTime(item.createdAt)}</span>
+                </div>
+                <div className="muted" style={{ fontSize: 13 }}>
+                  {item.razon || 'Sin razón registrada'}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </Modal>
     </div>
   );
@@ -641,6 +972,7 @@ export function ReportsScreen({ toast }) {
     { label: 'Tasa asistencia', value: `${data?.tasaAsistencia ?? 0}%` },
     { label: 'Visitantes nuevos', value: data?.visitantesNuevos ?? 0 },
   ];
+  const categoriasReporte = data?.categoriasReporte || [];
 
   return (
     <div>
@@ -685,7 +1017,7 @@ export function ReportsScreen({ toast }) {
               }
             }}
           >
-            PDF
+            CSV
           </Button>
         </div>
       </div>
@@ -711,6 +1043,50 @@ export function ReportsScreen({ toast }) {
           <div className="card-title">Por célula</div>
           <Donut data={data?.porCelula || []} />
         </div>
+      </div>
+
+      <div className="card" style={{ padding: 18 }}>
+        <div className="card-title">Reporte por culto y clasificación</div>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Vista inspirada en tu control mensual: cada culto muestra su día y el total por categoría demográfica.
+        </p>
+
+        {(!data?.porCulto || data.porCulto.length === 0) && (
+          <p className="muted">Todavía no hay asistencias registradas en este mes.</p>
+        )}
+
+        {data?.porCulto?.length > 0 && (
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Día</th>
+                <th>Culto</th>
+                {categoriasReporte.map((categoria) => (
+                  <th key={categoria}>{categoria}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {data.porCulto.map((item) => (
+                <tr key={item.cultoId}>
+                  <td>{formatDate(item.fecha)}</td>
+                  <td>
+                    {new Date(`${item.fecha}T00:00:00`).toLocaleDateString('es-DO', {
+                      weekday: 'long',
+                    })}
+                  </td>
+                  <td>{item.tipoCulto}</td>
+                  {categoriasReporte.map((categoria) => (
+                    <td key={`${item.cultoId}-${categoria}`} className="tnum">
+                      {item.clasificaciones?.[categoria] ?? 0}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

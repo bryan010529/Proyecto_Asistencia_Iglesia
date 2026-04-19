@@ -1,4 +1,5 @@
 const { query } = require('../config/database');
+const { ensureTiposSchema } = require('./tipos-miembro.service');
 
 function normalizeRows(result) {
   if (Array.isArray(result)) {
@@ -30,7 +31,22 @@ function getMonthBounds(mes) {
   return { start, nextMonth };
 }
 
+function formatDate(value) {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return String(value).slice(0, 10);
+  }
+
+  return date.toISOString().slice(0, 10);
+}
+
 async function getResumen(mes) {
+  await ensureTiposSchema();
   const { start, nextMonth } = getMonthBounds(mes);
 
   const [
@@ -39,6 +55,7 @@ async function getResumen(mes) {
     visitantesNuevosResult,
     porCelulaResult,
     semanalResult,
+    porCultoTipoResult,
   ] = await Promise.all([
     query(
       `
@@ -100,6 +117,25 @@ async function getResumen(mes) {
       `,
       [start, nextMonth]
     ),
+    query(
+      `
+        SELECT
+          c.id AS cultoId,
+          c.fecha,
+          c.tipo AS tipoCulto,
+          COALESCE(tm.nombre, 'Sin clasificar') AS tipoMiembro,
+          COUNT(a.id) AS total
+        FROM cultos c
+        LEFT JOIN asistencias a ON a.cultoId = c.id
+        LEFT JOIN miembros m ON m.id = a.miembroId
+        LEFT JOIN tipos_miembro tm ON tm.id = m.tipoMiembroId
+        WHERE c.fecha >= ?
+          AND c.fecha < ?
+        GROUP BY c.id, c.fecha, c.tipo, COALESCE(tm.nombre, 'Sin clasificar')
+        ORDER BY c.fecha ASC, tipoMiembro ASC
+      `,
+      [start, nextMonth]
+    ),
   ]);
 
   const asistenciaHoy = Number(getValue(normalizeRows(asistenciaHoyResult)[0] || {}, ['total', 'TOTAL']) || 0);
@@ -122,6 +158,30 @@ async function getResumen(mes) {
     total: Number(getValue(row, ['total', 'TOTAL']) || 0),
   }));
 
+  const byCultoMap = new Map();
+  const categorias = new Set();
+
+  normalizeRows(porCultoTipoResult).forEach((row) => {
+    const cultoId = Number(getValue(row, ['cultoId', 'CULTOID', 'cultoid']) || 0);
+    const fecha = formatDate(getValue(row, ['fecha', 'FECHA']));
+    const tipoCulto = getValue(row, ['tipoCulto', 'TIPOCULTO', 'tipoculto']) || 'Culto';
+    const tipoMiembro = getValue(row, ['tipoMiembro', 'TIPOMIEMBRO', 'tipomiembro']) || 'Sin clasificar';
+    const total = Number(getValue(row, ['total', 'TOTAL']) || 0);
+
+    categorias.add(tipoMiembro);
+
+    if (!byCultoMap.has(cultoId)) {
+      byCultoMap.set(cultoId, {
+        cultoId,
+        fecha,
+        tipoCulto,
+        clasificaciones: {},
+      });
+    }
+
+    byCultoMap.get(cultoId).clasificaciones[tipoMiembro] = total;
+  });
+
   return {
     asistenciaHoy,
     miembrosActivos,
@@ -129,6 +189,8 @@ async function getResumen(mes) {
     visitantesNuevos,
     porCelula,
     semanal,
+    categoriasReporte: Array.from(categorias).sort((a, b) => a.localeCompare(b, 'es')),
+    porCulto: Array.from(byCultoMap.values()),
   };
 }
 

@@ -1,5 +1,6 @@
 const ExcelJS = require('exceljs');
 const { query } = require('../config/database');
+const { ensureTiposSchema } = require('./tipos-miembro.service');
 
 function normalizeRows(result) {
   if (Array.isArray(result)) {
@@ -34,11 +35,12 @@ function getMonthBounds(mes) {
 function mapRow(row) {
   return {
     fecha: getValue(row, ['fecha', 'FECHA']),
-    tipo: getValue(row, ['tipo', 'TIPO']),
+    tipoCulto: getValue(row, ['tipoCulto', 'TIPOCULTO', 'tipoculto']),
     nombre: getValue(row, ['nombre', 'NOMBRE']),
     cedula: getValue(row, ['cedula', 'CEDULA']),
     celula: getValue(row, ['celula', 'CELULA']),
     rol: getValue(row, ['rol', 'ROL']),
+    tipoMiembro: getValue(row, ['tipoMiembro', 'TIPOMIEMBRO', 'tipomiembro']) || 'Sin clasificar',
     horaRegistro: getValue(row, ['horaRegistro', 'HORAREGISTRO', 'horaregistro']),
   };
 }
@@ -51,10 +53,24 @@ function formatDate(value) {
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return String(value);
+    return String(value).slice(0, 10);
   }
 
   return date.toISOString().slice(0, 10);
+}
+
+function formatWeekday(value) {
+  if (!value) {
+    return '';
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  return date.toLocaleDateString('es-DO', { weekday: 'long' });
 }
 
 function formatDateTime(value) {
@@ -77,24 +93,33 @@ function escapeCsvValue(value) {
   return `"${escaped}"`;
 }
 
+function sanitizeSheetName(value) {
+  return String(value || 'Sin clasificar')
+    .replace(/[\\/*?:[\]]/g, '')
+    .slice(0, 31);
+}
+
 async function getRowsByMonth(mes) {
+  await ensureTiposSchema();
   const { start, nextMonth } = getMonthBounds(mes);
   const result = await query(
     `
       SELECT
         c.fecha,
-        c.tipo,
+        c.tipo AS tipoCulto,
         m.nombre,
         m.cedula,
         m.celula,
         m.rol,
+        COALESCE(tm.nombre, 'Sin clasificar') AS tipoMiembro,
         a.horaRegistro
       FROM cultos c
       LEFT JOIN asistencias a ON a.cultoId = c.id
       LEFT JOIN miembros m ON m.id = a.miembroId
+      LEFT JOIN tipos_miembro tm ON tm.id = m.tipoMiembroId
       WHERE c.fecha >= ?
         AND c.fecha < ?
-      ORDER BY c.fecha ASC, a.horaRegistro ASC, m.nombre ASC
+      ORDER BY c.fecha ASC, tipoMiembro ASC, a.horaRegistro ASC, m.nombre ASC
     `,
     [start, nextMonth]
   );
@@ -102,29 +127,84 @@ async function getRowsByMonth(mes) {
   return normalizeRows(result).map(mapRow);
 }
 
-async function buildXlsx(rows) {
-  const workbook = new ExcelJS.Workbook();
-  const worksheet = workbook.addWorksheet('Asistencia');
-
-  worksheet.columns = [
-    { header: 'Fecha', key: 'fecha', width: 15 },
-    { header: 'Culto', key: 'tipo', width: 18 },
-    { header: 'Nombre', key: 'nombre', width: 30 },
-    { header: 'Cédula', key: 'cedula', width: 18 },
-    { header: 'Célula', key: 'celula', width: 18 },
-    { header: 'Rol', key: 'rol', width: 16 },
-    { header: 'Hora Registro', key: 'horaRegistro', width: 22 },
-  ];
+function buildSummaryRows(rows) {
+  const map = new Map();
 
   rows.forEach((row) => {
-    worksheet.addRow({
-      fecha: formatDate(row.fecha),
-      tipo: row.tipo || '',
-      nombre: row.nombre || '',
-      cedula: row.cedula || '',
-      celula: row.celula || '',
-      rol: row.rol || '',
-      horaRegistro: formatDateTime(row.horaRegistro),
+    const fecha = formatDate(row.fecha);
+    const tipoCulto = row.tipoCulto || 'Culto';
+    const tipoMiembro = row.tipoMiembro || 'Sin clasificar';
+    const key = `${fecha}__${tipoCulto}__${tipoMiembro}`;
+
+    if (!map.has(key)) {
+      map.set(key, {
+        fecha,
+        dia: formatWeekday(row.fecha),
+        culto: tipoCulto,
+        clasificacion: tipoMiembro,
+        total: 0,
+      });
+    }
+
+    if (row.nombre) {
+      map.get(key).total += 1;
+    }
+  });
+
+  return Array.from(map.values());
+}
+
+async function buildXlsx(rows) {
+  const workbook = new ExcelJS.Workbook();
+  const summarySheet = workbook.addWorksheet('Resumen');
+  const rowsByType = rows.reduce((acc, row) => {
+    const typeName = row.tipoMiembro || 'Sin clasificar';
+
+    if (!acc[typeName]) {
+      acc[typeName] = [];
+    }
+
+    acc[typeName].push(row);
+    return acc;
+  }, {});
+
+  summarySheet.columns = [
+    { header: 'Fecha', key: 'fecha', width: 15 },
+    { header: 'Día', key: 'dia', width: 18 },
+    { header: 'Culto', key: 'culto', width: 24 },
+    { header: 'Clasificación', key: 'clasificacion', width: 24 },
+    { header: 'Asistentes', key: 'total', width: 14 },
+  ];
+
+  buildSummaryRows(rows).forEach((item) => {
+    summarySheet.addRow(item);
+  });
+
+  Object.entries(rowsByType).forEach(([typeName, typeRows]) => {
+    const worksheet = workbook.addWorksheet(sanitizeSheetName(typeName));
+
+    worksheet.columns = [
+      { header: 'Fecha', key: 'fecha', width: 15 },
+      { header: 'Día', key: 'dia', width: 18 },
+      { header: 'Culto', key: 'tipoCulto', width: 24 },
+      { header: 'Nombre', key: 'nombre', width: 30 },
+      { header: 'Cédula', key: 'cedula', width: 18 },
+      { header: 'Célula', key: 'celula', width: 18 },
+      { header: 'Rol', key: 'rol', width: 16 },
+      { header: 'Hora Registro', key: 'horaRegistro', width: 22 },
+    ];
+
+    typeRows.forEach((row) => {
+      worksheet.addRow({
+        fecha: formatDate(row.fecha),
+        dia: formatWeekday(row.fecha),
+        tipoCulto: row.tipoCulto || '',
+        nombre: row.nombre || '',
+        cedula: row.cedula || '',
+        celula: row.celula || '',
+        rol: row.rol || '',
+        horaRegistro: formatDateTime(row.horaRegistro),
+      });
     });
   });
 
@@ -133,13 +213,15 @@ async function buildXlsx(rows) {
 }
 
 function buildCsv(rows) {
-  const headers = ['Fecha', 'Culto', 'Nombre', 'Cédula', 'Célula', 'Rol', 'Hora Registro'];
+  const headers = ['Fecha', 'Día', 'Culto', 'Clasificación', 'Nombre', 'Cédula', 'Célula', 'Rol', 'Hora Registro'];
   const lines = [
     headers.map(escapeCsvValue).join(','),
     ...rows.map((row) =>
       [
         formatDate(row.fecha),
-        row.tipo || '',
+        formatWeekday(row.fecha),
+        row.tipoCulto || '',
+        row.tipoMiembro || 'Sin clasificar',
         row.nombre || '',
         row.cedula || '',
         row.celula || '',
