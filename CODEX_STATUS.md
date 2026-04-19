@@ -4,48 +4,46 @@
 ✅ APROBADO
 
 ## Última tarea validada
-TASK-B06 — CRUD de Miembros
+TASK-B07 — CRUD de Cultos
 
 ## Correcciones aplicadas
-Ninguna — código correcto y bien estructurado.
+Ninguna — código correcto.
 
 ## Próxima tarea
-**TASK-B07** — CRUD de Cultos
+**TASK-B08** — Registro de asistencia
 
 ### Archivos a crear:
 
-**`backend/src/services/cultos.service.js`**
-- `getAll()` → todos los cultos ORDER BY fecha DESC
-- `getById(id)` → lanza `{ status: 404, message: 'Culto no encontrado' }` si no existe
-- `create({ fecha, tipo, descripcion })` → INSERT
-- `getCultoActivo()` → culto del día actual o el más reciente; lanza `{ status: 404, message: 'No hay culto activo' }` si no hay ninguno
+**`backend/src/services/asistencia.service.js`**
+- `registrar({ miembroId, cultoId, registradoPor })` → INSERT en asistencias; lanza `{ status: 409, message: 'Asistencia ya registrada' }` si el miembro ya tiene registro para ese culto
+- `getByCulto(cultoId)` → lista de asistentes de un culto con datos del miembro (JOIN con miembros)
+- `anular(id)` → DELETE por id; lanza `{ status: 404, message: 'Registro no encontrado' }` si no existe
 
-**`backend/src/controllers/cultos.controller.js`**
-- `getAll` → res.json({ data: lista })
-- `getById` → res.json({ data: culto })
-- `create` → res.status(201).json({ data: culto })
-- `getCultoActivo` → res.json({ data: culto })
+**`backend/src/controllers/asistencia.controller.js`**
+- `registrar` → res.status(201).json({ data: registro })
+- `getByCulto` → res.json({ data: lista })
+- `anular` → res.json({ data: { message: 'Registro anulado' } })
 - Todos pasan errores a `next(error)`
 
-**`backend/src/routes/cultos.routes.js`**
+**`backend/src/routes/asistencia.routes.js`**
 ```
-GET  /api/cultos           — lista completa (protegida)
-GET  /api/cultos/activo    — culto activo (protegida)  ← OJO: debe ir ANTES de /:id
-GET  /api/cultos/:id       — detalle (protegida)
-POST /api/cultos           — crear (protegida)
+POST   /api/asistencia              — registrar asistencia (protegida)
+GET    /api/asistencia/:cultoId     — lista de asistentes de un culto (protegida)
+DELETE /api/asistencia/:id          — anular registro (protegida)
 ```
 - Todas protegidas con `authMiddleware`
-- Validar con `express-validator`: fecha requerida + isISO8601, tipo requerido + isIn(['Dominical','Oración','Especial'])
+- Validar: miembroId y cultoId requeridos + isInt, body registradoPor opcional (si no viene, usar req.user.id del JWT)
 
 **Registrar en `backend/src/routes/index.js`:**
 ```js
-const cultosRoutes = require('./cultos.routes');
-router.use('/cultos', cultosRoutes);
+const asistenciaRoutes = require('./asistencia.routes');
+router.use('/asistencia', asistenciaRoutes);
 ```
 
 ### Convenciones:
 - Queries SQL directas via `require('../config/database').query`
-- Helper `normalizeRows` y `mapCulto` igual al patrón de miembros.service.js
+- horaRegistro: CURRENT_TIMESTAMP en el INSERT
+- registradoPor: usar `req.user.id` del token JWT si no viene en el body
 - Errores como `{ error: 'mensaje' }`, sin console.log
 
 ---
