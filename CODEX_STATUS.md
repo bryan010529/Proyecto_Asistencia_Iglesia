@@ -1,44 +1,55 @@
 # Estado de Validación — Actualizado automáticamente por Claude
 
 ## Estado actual
-⚠️ APROBADO CON CORRECCIONES
+✅ APROBADO
 
 ## Última tarea validada
-TASK-B04 — Modelo Usuario
+TASK-B05 — Servicio y rutas de autenticación
 
 ## Correcciones aplicadas
-- `index.js`: eliminado comentario duplicado `// const Usuario = require('./usuario.model')` (línea 8 — ya estaba importado en línea 5)
+Ninguna — código correcto y bien estructurado.
 
 ## Próxima tarea
-**TASK-B05** — Servicio y rutas de autenticación
+**TASK-B06** — CRUD de Miembros
 
 ### Archivos a crear:
 
-**`backend/src/services/auth.service.js`**
-```js
-// Funciones:
-// - login(correo, password) → busca Usuario por correo, compara con bcrypt, genera JWT
-// - El JWT debe incluir payload: { id, nombre, rol }
-// - Si credenciales inválidas → throw { status: 401, message: 'Credenciales inválidas' }
-```
+**`backend/src/services/miembros.service.js`**
+- `getAll({ q, estado })` → query con filtros opcionales usando ODBC (`database.js`)
+- `getById(id)` → busca un miembro por id, lanza `{ status: 404, message: 'Miembro no encontrado' }` si no existe
+- `create({ nombre, cedula, correo, celula, rol })` → INSERT, lanza `{ status: 409, message: 'La cédula ya existe' }` si duplicada
+- `update(id, datos)` → UPDATE parcial
+- `remove(id)` → soft delete: UPDATE estado='inactivo'
 
-**`backend/src/routes/auth.routes.js`**
-```js
-// POST /api/auth/login   → body: { correo, password } → res: { token, usuario: { id, nombre, rol } }
-// POST /api/auth/logout  → res: { message: 'Sesión cerrada' }  (solo limpia en cliente, no hay estado servidor)
+**`backend/src/controllers/miembros.controller.js`**
+- `getAll` → llama service, res.json(lista)
+- `getById` → llama service, res.json(miembro)
+- `create` → llama service, res.status(201).json(miembro)
+- `update` → llama service, res.json(miembro)
+- `remove` → llama service, res.json({ message: 'Miembro desactivado' })
+- Todos pasan errores a `next(error)`
+
+**`backend/src/routes/miembros.routes.js`**
 ```
+GET    /api/miembros          ?q=&estado=
+GET    /api/miembros/:id
+POST   /api/miembros
+PUT    /api/miembros/:id
+DELETE /api/miembros/:id
+```
+- Todas protegidas con `authMiddleware` de `../middleware/auth`
+- Validar con `express-validator`: nombre requerido, cedula requerida, correo isEmail si presente
 
 **Registrar en `backend/src/routes/index.js`:**
 ```js
-const authRoutes = require('./auth.routes');
-router.use('/auth', authRoutes);
+const miembrosRoutes = require('./miembros.routes');
+router.use('/miembros', miembrosRoutes);
 ```
 
-### Detalles importantes:
-- Usar `bcryptjs` (ya en package.json) para comparar contraseña con `passwordHash`
-- JWT con `jsonwebtoken`: secret = `process.env.JWT_SECRET`, expiresIn = `process.env.JWT_EXPIRES_IN`
-- Validar con `express-validator`: correo requerido + isEmail, password requerido + minLength(6)
-- Errores siempre como `{ error: 'mensaje' }` con status HTTP correcto
+### Convenciones:
+- Errores siempre como `{ error: 'mensaje' }` con status correcto
+- Queries SQL directas via `require('../config/database').query`
+- Sin console.log
 
 ---
 *Última actualización: Claude Sonnet 4.6 — validación automática*
