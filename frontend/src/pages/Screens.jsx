@@ -1186,7 +1186,7 @@ export function ReportsScreen({ toast }) {
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginBottom: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16, marginBottom: 20 }}>
         <div className="card">
           <div className="card-title">Asistencia semanal</div>
           <BarChart data={data?.semanal || []} />
@@ -1335,18 +1335,21 @@ function Donut({ data }) {
   });
 
   return (
-    <div className="chart-wrap" style={{ display: 'flex', alignItems: 'center', gap: 16, height: 200 }}>
-      <svg width="180" height="180" viewBox="0 0 180 180" style={{ flexShrink: 0 }}>
+    <div
+      className="chart-wrap"
+      style={{ display: 'flex', alignItems: 'center', gap: 16, height: 'auto', minHeight: 200, flexWrap: 'wrap' }}
+    >
+      <svg width="180" height="180" viewBox="0 0 180 180" style={{ flex: '0 0 180px' }}>
         {arcs.map((arc) => <path key={arc.celula} d={arc.path} fill={arc.color} />)}
         <text x={cx} y={cy - 2} textAnchor="middle" fontSize="14" fontWeight="700" fill="#333">{total}</text>
         <text x={cx} y={cy + 14} textAnchor="middle" fontSize="10" fill="#666">activos</text>
       </svg>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, flex: '1 1 180px', minWidth: 0 }}>
         {arcs.map((arc) => (
-          <div key={arc.celula} className="row" style={{ gap: 8 }}>
-            <span style={{ width: 10, height: 10, background: arc.color, borderRadius: 2 }}></span>
-            <span style={{ flex: 1 }}>{arc.celula || 'Sin célula'}</span>
-            <span className="tnum muted">{arc.total}</span>
+          <div key={arc.celula} className="row" style={{ gap: 8, width: '100%', minWidth: 0 }}>
+            <span style={{ width: 10, height: 10, background: arc.color, borderRadius: 2, flex: '0 0 10px' }}></span>
+            <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{arc.celula || 'Sin célula'}</span>
+            <span className="tnum muted" style={{ flex: '0 0 auto' }}>{arc.total}</span>
           </div>
         ))}
       </div>

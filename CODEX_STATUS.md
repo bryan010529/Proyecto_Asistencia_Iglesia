@@ -107,9 +107,17 @@ El bloque más reciente ya fue empujado a `main` y quedó pendiente de revisión
 - Esos archivos no aparecen en este workspace local, por lo que la validación documental completa sigue parcial
 
 ## Trabajo actual no empujado todavía
-- Migración de carga masiva y plantilla desde CSV a Excel
+- Módulo nuevo de `Células` con catálogo, reuniones, asistencia y reporte por reunión
+  - líder elegible desde miembros activos con rol `Líder` o `Pastor`
 
 ## Archivos actualmente en edición local
+- `backend/src/controllers/celulas.controller.js`
+- `backend/src/routes/celulas.routes.js`
+- `backend/src/services/celulas.service.js`
+- `backend/src/routes/index.js`
+- `frontend/src/pages/CellsScreen.jsx`
+- `frontend/src/App.jsx`
+- `frontend/src/components/AppSidebar.jsx`
 - `backend/src/controllers/miembros.controller.js`
 - `backend/src/routes/miembros.routes.js`
 - `backend/src/services/miembros.service.js`
@@ -118,9 +126,26 @@ El bloque más reciente ya fue empujado a `main` y quedó pendiente de revisión
 - `DOCUMENTACION_TECNICA.md`
 
 ## Próximo bloque de trabajo
-1. Validar `lint` y `build` del cambio a Excel
-2. Hacer `commit` y `push` del bloque Excel
-3. Pedir revisión externa del ajuste
+1. Validar el flujo del módulo `Células` contra base local con ODBC operativo
+2. Hacer `commit` y `push` del bloque de células
+3. Iniciar módulo Campamento (ver `CODEX_TASKS_CAMPAMENTO.md`)
 
 ---
-*Última actualización: Codex — estado manual consolidado con trabajo histórico + trabajo en curso*
+
+## Módulo Campamento — Pendiente de inicio
+
+Ver instrucciones completas en `CODEX_TASKS_CAMPAMENTO.md`.
+
+### Primera tarea: TASK-C01
+Crear `backend/src/models/campamento.model.js` y registrarlo en `models/index.js`.
+
+### Convenciones críticas para el módulo Campamento
+- Validación: `express-validator` — NO Joi
+- CSS frontend: clases de `kit.css` — NO Tailwind, NO Recharts
+- Ruta base: `/api/campamentos` — NO `/api/v1/`
+- Estructura: archivos planos en `controllers/`, `services/`, `routes/` — NO carpeta `modules/`
+- Patrón `normalizeRows` + `getValue` + `ensureSchema` obligatorio en cada servicio
+- Pantalla nueva: `frontend/src/pages/CampamentoScreen.jsx`
+
+---
+*Última actualización: Claude Sonnet 4.6 — módulo campamento agregado*

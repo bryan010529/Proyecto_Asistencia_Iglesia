@@ -3,6 +3,7 @@ import AppSidebar from './components/AppSidebar';
 import { Topbar } from './components/Shell';
 import { ToastStack, useToasts } from './components/Primitives';
 import { useAuth } from './context/AuthContext';
+import CellsScreen from './pages/CellsScreen';
 import { AttendanceScreen, LoginScreen, MembersScreen, ReportsScreen, ToolsScreen } from './pages/Screens';
 import SettingsScreen from './pages/SettingsScreen';
 
@@ -55,6 +56,11 @@ export default function App() {
       title: 'Miembros',
       crumbs: 'Directorio general',
       el: <MembersScreen toast={push} />,
+    },
+    celulas: {
+      title: 'Células',
+      crumbs: 'Control de asistencia y resultado',
+      el: <CellsScreen toast={push} />,
     },
     agenda: {
       title: 'Agenda de cultos',

@@ -135,6 +135,26 @@ Archivos clave:
 - [backend/src/services/asistencia.service.js](/Users/torres/proyectos/Proyecto_Asistencia_Iglesia/backend/src/services/asistencia.service.js)
 - [backend/src/controllers/asistencia.controller.js](/Users/torres/proyectos/Proyecto_Asistencia_Iglesia/backend/src/controllers/asistencia.controller.js)
 
+### 4.1. Células
+- Catálogo de células con líder, sector, día y hora
+- El líder de célula se selecciona desde miembros activos con rol `Líder` o `Pastor`
+- Reuniones por célula y por mes
+- Control de asistencia por reunión de célula
+- Registro de visitantes en la reunión de célula
+- Reporte de resultado de la reunión:
+  - visitantes
+  - conversiones
+  - ofrenda
+  - observaciones
+  - ánimo general
+- Resumen mensual por célula con promedio de asistencia
+
+Archivos clave:
+- [backend/src/services/celulas.service.js](/Users/torres/proyectos/Proyecto_Asistencia_Iglesia/backend/src/services/celulas.service.js)
+- [backend/src/controllers/celulas.controller.js](/Users/torres/proyectos/Proyecto_Asistencia_Iglesia/backend/src/controllers/celulas.controller.js)
+- [backend/src/routes/celulas.routes.js](/Users/torres/proyectos/Proyecto_Asistencia_Iglesia/backend/src/routes/celulas.routes.js)
+- [frontend/src/pages/CellsScreen.jsx](/Users/torres/proyectos/Proyecto_Asistencia_Iglesia/frontend/src/pages/CellsScreen.jsx)
+
 ### 5. Tipos de miembro
 - Catálogo administrable desde Ajustes
 - Actualmente soporta clasificaciones como:
@@ -200,6 +220,17 @@ Archivos clave:
 - `PUT /api/miembros/:id`
 - `DELETE /api/miembros/:id`
 
+### Células
+- `GET /api/celulas`
+- `GET /api/celulas/resumen?mes=YYYY-MM`
+- `POST /api/celulas`
+- `PUT /api/celulas/:id`
+- `GET /api/celulas/:id/reuniones?mes=YYYY-MM`
+- `POST /api/celulas/reuniones`
+- `GET /api/celulas/reuniones/:id`
+- `POST /api/celulas/reuniones/:id/asistencia`
+- `PUT /api/celulas/reuniones/:id/reporte`
+
 ### Cultos
 - `GET /api/cultos`
 - `POST /api/cultos`
@@ -236,6 +267,10 @@ Archivos clave:
 - `cultos`
 - `asistencias`
 - `tipos_miembro`
+- `celulas`
+- `celula_reuniones`
+- `celula_asistencias`
+- `celula_reportes`
 - `miembros_estado_historial`
 - `agenda_cultos`
 - `agenda_cultos_historial`
@@ -255,6 +290,13 @@ Archivos clave:
 2. Clasificación opcional por tipo de miembro.
 3. Desactivación con razón.
 4. Registro automático en historial de estados cuando cambia `estado`.
+
+### Control de célula
+1. Se crea o edita una célula con líder, sector y horario.
+2. Se programa una reunión de célula para una fecha concreta.
+3. En esa reunión se registra asistencia de miembros y visitantes.
+4. Al finalizar, se guarda un reporte con resultados y observaciones.
+5. El sistema consolida resumen mensual por célula.
 
 ### Carga masiva de miembros
 1. El usuario descarga la plantilla Excel desde `Herramientas`.

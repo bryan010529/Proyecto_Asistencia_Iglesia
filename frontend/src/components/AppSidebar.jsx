@@ -13,6 +13,7 @@ export default function AppSidebar({ current, onNav, user }) {
   const items = [
     { id: 'asistencia', icon: 'check-circle', label: 'Asistencia' },
     { id: 'miembros', icon: 'users', label: 'Miembros' },
+    { id: 'celulas', icon: 'house', label: 'Células' },
     { id: 'agenda', icon: 'calendar-days', label: 'Agenda de cultos' },
     { id: 'herramientas', icon: 'wrench', label: 'Herramientas' },
     { id: 'reportes', icon: 'bar-chart-3', label: 'Reportes' },
