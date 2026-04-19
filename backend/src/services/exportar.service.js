@@ -31,6 +31,24 @@ function getMonthBounds(mes) {
   return { start, nextMonth };
 }
 
+function validarMes(mes) {
+  if (!/^\d{4}-\d{2}$/.test(mes)) {
+    throw { status: 400, message: 'El mes debe tener formato YYYY-MM' };
+  }
+
+  const [, month] = mes.split('-').map(Number);
+
+  if (month < 1 || month > 12) {
+    throw { status: 400, message: 'El mes debe tener un valor válido entre 01 y 12' };
+  }
+}
+
+function validarFormato(formato) {
+  if (!['xlsx', 'csv'].includes(formato)) {
+    throw { status: 400, message: 'El formato debe ser xlsx o csv' };
+  }
+}
+
 function mapRow(row) {
   return {
     fecha: getValue(row, ['fecha', 'FECHA']),
@@ -151,10 +169,13 @@ function buildCsv(rows) {
     ),
   ];
 
-  return Buffer.from(lines.join('\n'), 'utf8');
+  return Buffer.from(`\uFEFF${lines.join('\n')}`, 'utf8');
 }
 
 async function exportar(mes, formato) {
+  validarMes(mes);
+  validarFormato(formato);
+
   const rows = await getRowsByMonth(mes);
   const filename = `asistencia-${mes}.${formato}`;
 
@@ -162,7 +183,7 @@ async function exportar(mes, formato) {
     return {
       buffer: buildCsv(rows),
       filename,
-      contentType: 'text/csv',
+      contentType: 'text/csv; charset=utf-8',
     };
   }
 
