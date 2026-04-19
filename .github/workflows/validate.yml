@@ -1,4 +1,4 @@
-name: Validar código
+name: CI / Deploy
 
 on:
   push:
@@ -7,35 +7,43 @@ on:
     branches: [main]
 
 jobs:
-  backend:
-    name: Backend — lint
+  # ── Validación en la nube (siempre) ──────────────────────────────────────
+  lint-build:
+    name: Lint y Build
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
-      - run: npm install
-      - run: npm run lint
 
-  frontend:
-    name: Frontend — lint + build
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
-    steps:
-      - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - run: npm install
-      - run: npm run lint
-      - run: npm run build
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Backend — lint
+        working-directory: backend
+        run: |
+          npm install
+          npm run lint
+
+      - name: Frontend — lint + build
+        working-directory: frontend
+        run: |
+          npm install
+          npm run lint
+          npm run build
+
+  # ── Deploy al servidor (solo en push a main) ─────────────────────────────
+  deploy:
+    name: Deploy a producción
+    needs: lint-build
+    runs-on: self-hosted
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Ejecutar script de deploy
+        shell: powershell
+        run: |
+          C:\apps\asistencia-iglesia\scripts\deploy.ps1
