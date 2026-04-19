@@ -4,52 +4,49 @@
 ✅ APROBADO
 
 ## Última tarea validada
-TASK-B05 — Servicio y rutas de autenticación
+TASK-B06 — CRUD de Miembros
 
 ## Correcciones aplicadas
 Ninguna — código correcto y bien estructurado.
 
 ## Próxima tarea
-**TASK-B06** — CRUD de Miembros
+**TASK-B07** — CRUD de Cultos
 
 ### Archivos a crear:
 
-**`backend/src/services/miembros.service.js`**
-- `getAll({ q, estado })` → query con filtros opcionales usando ODBC (`database.js`)
-- `getById(id)` → busca un miembro por id, lanza `{ status: 404, message: 'Miembro no encontrado' }` si no existe
-- `create({ nombre, cedula, correo, celula, rol })` → INSERT, lanza `{ status: 409, message: 'La cédula ya existe' }` si duplicada
-- `update(id, datos)` → UPDATE parcial
-- `remove(id)` → soft delete: UPDATE estado='inactivo'
+**`backend/src/services/cultos.service.js`**
+- `getAll()` → todos los cultos ORDER BY fecha DESC
+- `getById(id)` → lanza `{ status: 404, message: 'Culto no encontrado' }` si no existe
+- `create({ fecha, tipo, descripcion })` → INSERT
+- `getCultoActivo()` → culto del día actual o el más reciente; lanza `{ status: 404, message: 'No hay culto activo' }` si no hay ninguno
 
-**`backend/src/controllers/miembros.controller.js`**
-- `getAll` → llama service, res.json(lista)
-- `getById` → llama service, res.json(miembro)
-- `create` → llama service, res.status(201).json(miembro)
-- `update` → llama service, res.json(miembro)
-- `remove` → llama service, res.json({ message: 'Miembro desactivado' })
+**`backend/src/controllers/cultos.controller.js`**
+- `getAll` → res.json({ data: lista })
+- `getById` → res.json({ data: culto })
+- `create` → res.status(201).json({ data: culto })
+- `getCultoActivo` → res.json({ data: culto })
 - Todos pasan errores a `next(error)`
 
-**`backend/src/routes/miembros.routes.js`**
+**`backend/src/routes/cultos.routes.js`**
 ```
-GET    /api/miembros          ?q=&estado=
-GET    /api/miembros/:id
-POST   /api/miembros
-PUT    /api/miembros/:id
-DELETE /api/miembros/:id
+GET  /api/cultos           — lista completa (protegida)
+GET  /api/cultos/activo    — culto activo (protegida)  ← OJO: debe ir ANTES de /:id
+GET  /api/cultos/:id       — detalle (protegida)
+POST /api/cultos           — crear (protegida)
 ```
-- Todas protegidas con `authMiddleware` de `../middleware/auth`
-- Validar con `express-validator`: nombre requerido, cedula requerida, correo isEmail si presente
+- Todas protegidas con `authMiddleware`
+- Validar con `express-validator`: fecha requerida + isISO8601, tipo requerido + isIn(['Dominical','Oración','Especial'])
 
 **Registrar en `backend/src/routes/index.js`:**
 ```js
-const miembrosRoutes = require('./miembros.routes');
-router.use('/miembros', miembrosRoutes);
+const cultosRoutes = require('./cultos.routes');
+router.use('/cultos', cultosRoutes);
 ```
 
 ### Convenciones:
-- Errores siempre como `{ error: 'mensaje' }` con status correcto
 - Queries SQL directas via `require('../config/database').query`
-- Sin console.log
+- Helper `normalizeRows` y `mapCulto` igual al patrón de miembros.service.js
+- Errores como `{ error: 'mensaje' }`, sin console.log
 
 ---
 *Última actualización: Claude Sonnet 4.6 — validación automática*
