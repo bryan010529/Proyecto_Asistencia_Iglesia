@@ -1,12 +1,13 @@
 const { Router } = require('express');
+const authRoutes = require('./auth.routes');
+
 const router = Router();
 
 // Registrar rutas aquí a medida que se creen
-// const authRoutes = require('./auth.routes');
 // const miembrosRoutes = require('./miembros.routes');
 // const asistenciaRoutes = require('./asistencia.routes');
 
-// router.use('/auth', authRoutes);
+router.use('/auth', authRoutes);
 // router.use('/miembros', miembrosRoutes);
 // router.use('/asistencia', asistenciaRoutes);
 
