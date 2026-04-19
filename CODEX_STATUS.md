@@ -8,7 +8,7 @@ El bloque más reciente ya fue empujado a `main` y quedó pendiente de revisión
 
 ## Último push realizado
 - Commit en `main`: `6dc3537`
-- Descripción: ajuste de menú, nueva sección `Herramientas`, carga masiva CSV y plantilla de importación
+- Descripción: ajuste de menú, nueva sección `Herramientas` y bloque inicial de carga masiva
 
 ## Validación local completada
 - `backend`: `npm run lint` OK
@@ -54,7 +54,7 @@ El bloque más reciente ya fue empujado a `main` y quedó pendiente de revisión
 - Razón de inactivación
 - Historial de cambios de estado
 - Vista de historial desde frontend
-- Endpoint para carga masiva por CSV
+- Endpoint para carga masiva por Excel
 
 ### Ajustes
 - Gestión de tipos de miembro
@@ -70,7 +70,8 @@ El bloque más reciente ya fue empujado a `main` y quedó pendiente de revisión
 - `Agenda de cultos` movida al menú principal
 - Nueva sección `Herramientas`
 - `Carga masiva de miembros` movida a `Herramientas`
-- Botón para descargar plantilla CSV de importación
+- Botón para descargar plantilla Excel de importación
+- Importación masiva de miembros desde Excel `.xlsx`
 
 ### Reportes
 - Resumen por culto y clasificación demográfica
@@ -106,21 +107,20 @@ El bloque más reciente ya fue empujado a `main` y quedó pendiente de revisión
 - Esos archivos no aparecen en este workspace local, por lo que la validación documental completa sigue parcial
 
 ## Trabajo actual no empujado todavía
-- Ninguno en este momento
+- Migración de carga masiva y plantilla desde CSV a Excel
 
 ## Archivos actualmente en edición local
 - `backend/src/controllers/miembros.controller.js`
 - `backend/src/routes/miembros.routes.js`
 - `backend/src/services/miembros.service.js`
-- `frontend/src/App.jsx`
-- `frontend/src/components/AppSidebar.jsx`
 - `frontend/src/pages/Screens.jsx`
-- `frontend/src/pages/SettingsScreen.jsx`
+- `CODEX_STATUS.md`
+- `DOCUMENTACION_TECNICA.md`
 
 ## Próximo bloque de trabajo
-1. Esperar revisión de Copilot sobre el bloque recién empujado
-2. Aplicar cualquier corrección derivada de esa revisión
-3. Continuar con próximos ajustes funcionales
+1. Validar `lint` y `build` del cambio a Excel
+2. Hacer `commit` y `push` del bloque Excel
+3. Pedir revisión externa del ajuste
 
 ---
 *Última actualización: Codex — estado manual consolidado con trabajo histórico + trabajo en curso*

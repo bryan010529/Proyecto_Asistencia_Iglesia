@@ -1,3 +1,4 @@
+const ExcelJS = require('exceljs');
 const { query } = require('../config/database');
 const { ensureTiposSchema } = require('./tipos-miembro.service');
 
@@ -58,6 +59,14 @@ function generateVisitorCedula() {
   const timestamp = Date.now();
   const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
   return `VIS-${timestamp}-${random}`;
+}
+
+function normalizeText(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
 }
 
 async function ensureColumn(tableName, columnName, definition) {
@@ -366,6 +375,175 @@ async function getStatusHistory(id) {
   return normalizeRows(result).map(mapHistorialEstado);
 }
 
+async function buildTemplate() {
+  await ensureTiposSchema();
+  const tipos = await query(
+    `
+      SELECT nombre
+      FROM tipos_miembro
+      WHERE activo = 1
+      ORDER BY nombre ASC
+    `
+  );
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Miembros');
+  const ayuda = workbook.addWorksheet('Ayuda');
+
+  worksheet.columns = [
+    { header: 'nombre', key: 'nombre', width: 28 },
+    { header: 'cedula', key: 'cedula', width: 18 },
+    { header: 'correo', key: 'correo', width: 28 },
+    { header: 'celula', key: 'celula', width: 20 },
+    { header: 'rol', key: 'rol', width: 16 },
+    { header: 'tipoMiembro', key: 'tipoMiembro', width: 22 },
+  ];
+
+  worksheet.addRow({
+    nombre: 'María Pérez',
+    cedula: '00112345678',
+    correo: 'maria@correo.com',
+    celula: 'Célula 1',
+    rol: 'Miembro',
+    tipoMiembro: 'Damas',
+  });
+  worksheet.addRow({
+    nombre: 'Juan Díaz',
+    cedula: '00112345679',
+    correo: 'juan@correo.com',
+    celula: 'Célula 2',
+    rol: 'Líder',
+    tipoMiembro: 'Caballeros',
+  });
+
+  ayuda.columns = [
+    { header: 'Campo', key: 'campo', width: 20 },
+    { header: 'Descripción', key: 'descripcion', width: 55 },
+  ];
+
+  [
+    ['nombre', 'Requerido'],
+    ['cedula', 'Opcional solo para visitantes'],
+    ['correo', 'Opcional, debe ser válido si se envía'],
+    ['celula', 'Opcional'],
+    ['rol', 'Valores permitidos: Miembro, Líder, Visitante, Pastor'],
+    ['tipoMiembro', 'Debe coincidir con un tipo activo del sistema'],
+  ].forEach(([campo, descripcion]) => {
+    ayuda.addRow({ campo, descripcion });
+  });
+
+  ayuda.addRow({});
+  ayuda.addRow({ campo: 'Tipos activos', descripcion: '' });
+  normalizeRows(tipos).forEach((row) => {
+    ayuda.addRow({
+      campo: getValue(row, ['nombre', 'NOMBRE']),
+      descripcion: 'Tipo de miembro disponible',
+    });
+  });
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  return {
+    buffer: Buffer.from(buffer),
+    filename: 'plantilla-miembros.xlsx',
+    contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  };
+}
+
+async function parseExcelMembers(fileBase64) {
+  if (!fileBase64) {
+    throw { status: 400, message: 'El archivo Excel es requerido' };
+  }
+
+  await ensureTiposSchema();
+
+  const tiposResult = await query(
+    `
+      SELECT id, nombre
+      FROM tipos_miembro
+      WHERE activo = 1
+    `
+  );
+  const tiposMap = new Map(
+    normalizeRows(tiposResult).map((row) => [
+      normalizeText(getValue(row, ['nombre', 'NOMBRE'])),
+      Number(getValue(row, ['id', 'ID'])),
+    ])
+  );
+
+  let buffer;
+
+  try {
+    buffer = Buffer.from(fileBase64, 'base64');
+  } catch {
+    throw { status: 400, message: 'No fue posible leer el archivo Excel' };
+  }
+
+  const workbook = new ExcelJS.Workbook();
+
+  try {
+    await workbook.xlsx.load(buffer);
+  } catch {
+    throw { status: 400, message: 'El archivo Excel no tiene un formato válido' };
+  }
+
+  const worksheet = workbook.worksheets[0];
+
+  if (!worksheet) {
+    throw { status: 400, message: 'El archivo Excel no contiene hojas' };
+  }
+
+  const headerRow = worksheet.getRow(1);
+  const headers = headerRow.values
+    .slice(1)
+    .map((value) => normalizeText(value));
+
+  const requiredHeaders = ['nombre', 'cedula', 'correo', 'celula', 'rol', 'tipomiembro'];
+
+  if (requiredHeaders.some((header) => !headers.includes(header))) {
+    throw { status: 400, message: 'La plantilla Excel no tiene el formato esperado' };
+  }
+
+  const members = [];
+
+  worksheet.eachRow((row, rowNumber) => {
+    if (rowNumber === 1) {
+      return;
+    }
+
+    const values = row.values.slice(1);
+    const rowData = Object.fromEntries(headers.map((header, index) => [header, values[index] || '']));
+    const nombre = String(rowData.nombre || '').trim();
+
+    if (!nombre) {
+      return;
+    }
+
+    const tipoMiembroNombre = String(rowData.tipomiembro || '').trim();
+    const tipoMiembroId = tipoMiembroNombre
+      ? tiposMap.get(normalizeText(tipoMiembroNombre))
+      : undefined;
+
+    if (tipoMiembroNombre && !tipoMiembroId) {
+      throw {
+        status: 400,
+        message: `El tipo de miembro "${tipoMiembroNombre}" no existe o está inactivo en la fila ${rowNumber}`,
+      };
+    }
+
+    members.push({
+      row: rowNumber,
+      nombre,
+      cedula: String(rowData.cedula || '').trim(),
+      correo: String(rowData.correo || '').trim(),
+      celula: String(rowData.celula || '').trim(),
+      rol: String(rowData.rol || 'Miembro').trim() || 'Miembro',
+      tipoMiembroId,
+      tipoMiembroNombre,
+    });
+  });
+
+  return members;
+}
+
 async function bulkCreate(miembros, changedBy) {
   await ensureMiembroSchema();
 
@@ -394,7 +572,7 @@ async function bulkCreate(miembros, changedBy) {
       created.push(miembro);
     } catch (error) {
       errors.push({
-        row: index + 1,
+        row: row.row || index + 1,
         nombre: row.nombre || null,
         error: error.message || 'No se pudo importar el miembro',
       });
@@ -409,8 +587,15 @@ async function bulkCreate(miembros, changedBy) {
   };
 }
 
+async function bulkCreateFromExcel(fileBase64, changedBy) {
+  const miembros = await parseExcelMembers(fileBase64);
+  return bulkCreate(miembros, changedBy);
+}
+
 module.exports = {
   bulkCreate,
+  bulkCreateFromExcel,
+  buildTemplate,
   create,
   getAll,
   getById,

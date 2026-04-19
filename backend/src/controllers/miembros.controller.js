@@ -36,6 +36,15 @@ async function bulkCreate(req, res, next) {
   }
 }
 
+async function bulkCreateFromExcel(req, res, next) {
+  try {
+    const resultado = await miembrosService.bulkCreateFromExcel(req.body.fileBase64, req.user.id);
+    res.status(201).json({ data: resultado });
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function update(req, res, next) {
   try {
     const miembro = await miembrosService.update(req.params.id, req.body, req.user.id);
@@ -66,8 +75,21 @@ async function getStatusHistory(req, res, next) {
   }
 }
 
+async function downloadTemplate(req, res, next) {
+  try {
+    const template = await miembrosService.buildTemplate();
+    res.setHeader('Content-Type', template.contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${template.filename}"`);
+    res.send(template.buffer);
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   bulkCreate,
+  bulkCreateFromExcel,
+  downloadTemplate,
   getAll,
   getById,
   getStatusHistory,

@@ -127,10 +127,20 @@ const bulkValidations = [
   validate,
 ];
 
+const bulkExcelValidations = [
+  body('fileBase64')
+    .isString()
+    .notEmpty()
+    .withMessage('Debes enviar un archivo Excel válido'),
+  validate,
+];
+
 router.use(authMiddleware);
 
 router.get('/', listValidations, miembrosController.getAll);
+router.get('/plantilla', miembrosController.downloadTemplate);
 router.post('/carga-masiva', bulkValidations, miembrosController.bulkCreate);
+router.post('/carga-masiva-excel', bulkExcelValidations, miembrosController.bulkCreateFromExcel);
 router.get('/:id/historial-estados', idValidation, miembrosController.getStatusHistory);
 router.get('/:id', idValidation, miembrosController.getById);
 router.post('/', createValidations, miembrosController.create);
