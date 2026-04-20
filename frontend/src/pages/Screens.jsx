@@ -735,7 +735,7 @@ export function MembersScreen({ toast }) {
         </div>
       </div>
       {loading && <p className="muted" style={{ marginBottom: 12 }}>Cargando miembros...</p>}
-      <div style={{ background: '#fff', border: '1px solid var(--ls-border)', borderRadius: 8, overflow: 'hidden', boxShadow: 'var(--ls-shadow-sm)' }}>
+      <div className="tbl-wrap">
         <table className="tbl">
           <thead>
             <tr>
@@ -954,7 +954,7 @@ export function MembersScreen({ toast }) {
         {!historyLoading && history.length > 0 && (
           <div className="stack" style={{ gap: 10 }}>
             {history.map((item) => (
-              <div key={item.id} className="card" style={{ padding: 14 }}>
+              <div key={item.id} className="card">
                 <div className="row" style={{ justifyContent: 'space-between', marginBottom: 6 }}>
                   <strong>{item.estadoAnterior || 'sin estado'} → {item.estadoNuevo}</strong>
                   <span className="muted">{formatDate(item.createdAt)} {formatTime(item.createdAt)}</span>
