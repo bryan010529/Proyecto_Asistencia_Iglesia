@@ -501,7 +501,7 @@ export default function CellsScreen({ toast }) {
           <div className="card">
             <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
               <div>
-                <div className="card-title" style={{ marginBottom: 4 }}>{selectedCell?.nombre || 'Selecciona una célula'}</div>
+                <div className="card-title">{selectedCell?.nombre || 'Selecciona una célula'}</div>
                 <div className="muted">
                   {selectedCell
                     ? `${selectedCell.sector || 'Sector pendiente'} · ${selectedCell.liderNombre || 'Líder pendiente'} · ${selectedCell.diaReunion || 'Día pendiente'} ${selectedCell.horaReunion || ''}`
@@ -563,7 +563,7 @@ export default function CellsScreen({ toast }) {
               <div className="card">
                 <div className="row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
                   <div>
-                    <div className="card-title" style={{ marginBottom: 4 }}>Control de asistencia</div>
+                    <div className="card-title">Control de asistencia</div>
                     <div className="muted">
                       {meetingDetail
                         ? `${meetingDetail.tema} · ${formatDate(meetingDetail.fecha)}`
