@@ -54,7 +54,7 @@
   --ls-fg-on-secondary:  #FFFFFF;
 
   /* ----- TYPOGRAPHY ----- */
-  --ls-font-sans: Arial, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --ls-font-sans: 'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --ls-font-mono: "SF Mono", Menlo, Consolas, "Courier New", monospace;
 
   --ls-text-xs:   12px;
