@@ -669,7 +669,7 @@ export function MembersScreen({ toast }) {
 
   return (
     <div>
-      <div className="row" style={{ justifyContent: 'space-between', marginBottom: 16 }}>
+      <div className="page-hd">
         <h2 className="section-title" style={{ margin: 0 }}>Miembros</h2>
         <div className="row" style={{ gap: 8 }}>
           <Button
