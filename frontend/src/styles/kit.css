@@ -159,6 +159,12 @@ html, body, #root {
 .filters { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
 .filters .search { flex: 1; max-width: 360px; }
 
+/* ---------- Layout helpers ---------- */
+.page-hd { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.tbl-wrap { background: var(--ls-surface); border: 1px solid var(--ls-border); border-radius: 8px; overflow: hidden; box-shadow: var(--ls-shadow-sm); }
+.member-item { display: flex; align-items: center; gap: 14px; background: var(--ls-surface); border: 1px solid var(--ls-border); border-radius: 8px; padding: 12px 14px; box-shadow: var(--ls-shadow-xs); }
+.list-row { display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--ls-border); border-radius: 8px; padding: 10px 14px; background: var(--ls-surface); }
+
 /* Elementos solo-móvil ocultos en desktop */
 .bottom-nav { display: none; }
 .fab { display: none; }
