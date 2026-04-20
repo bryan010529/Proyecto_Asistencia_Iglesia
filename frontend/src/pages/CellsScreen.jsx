@@ -465,7 +465,7 @@ export default function CellsScreen({ toast }) {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '320px minmax(0, 1fr)', gap: 16 }}>
-        <div className="card" style={{ padding: 16 }}>
+        <div className="card">
           <div className="row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
             <div className="card-title" style={{ margin: 0 }}>Catálogo de células</div>
             <Badge variant="neutral">{cells.length}</Badge>
@@ -498,7 +498,7 @@ export default function CellsScreen({ toast }) {
         </div>
 
         <div className="stack" style={{ gap: 16 }}>
-          <div className="card" style={{ padding: 16 }}>
+          <div className="card">
             <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
               <div>
                 <div className="card-title" style={{ marginBottom: 4 }}>{selectedCell?.nombre || 'Selecciona una célula'}</div>
@@ -529,7 +529,7 @@ export default function CellsScreen({ toast }) {
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '360px minmax(0, 1fr)', gap: 16 }}>
-            <div className="card" style={{ padding: 16 }}>
+            <div className="card">
               <div className="row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
                 <div className="card-title" style={{ margin: 0 }}>Reuniones del mes</div>
                 <Badge variant="neutral">{meetings.length}</Badge>
@@ -560,7 +560,7 @@ export default function CellsScreen({ toast }) {
             </div>
 
             <div className="stack" style={{ gap: 16 }}>
-              <div className="card" style={{ padding: 16 }}>
+              <div className="card">
                 <div className="row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
                   <div>
                     <div className="card-title" style={{ marginBottom: 4 }}>Control de asistencia</div>
@@ -663,7 +663,7 @@ export default function CellsScreen({ toast }) {
                 )}
               </div>
 
-              <div className="card" style={{ padding: 16 }}>
+              <div className="card">
                 <div className="card-title" style={{ marginBottom: 12 }}>Reporte de cómo les fue</div>
 
                 {meetingDetail ? (
