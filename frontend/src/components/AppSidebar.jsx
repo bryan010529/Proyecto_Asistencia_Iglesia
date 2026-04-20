@@ -1,23 +1,38 @@
 import { useEffect, useState } from 'react';
 import { Avatar } from './Primitives';
 
+const NAV_SECTIONS = [
+  {
+    label: 'Principal',
+    items: [
+      { id: 'asistencia',   label: 'Asistencia' },
+      { id: 'miembros',     label: 'Miembros' },
+      { id: 'celulas',      label: 'Células' },
+      { id: 'agenda',       label: 'Agenda de cultos' },
+      { id: 'campamentos',  label: 'Campamentos' },
+    ],
+  },
+  {
+    label: 'Sistema',
+    items: [
+      { id: 'herramientas', label: 'Herramientas' },
+      { id: 'reportes',     label: 'Reportes' },
+      { id: 'ajustes',      label: 'Ajustes' },
+    ],
+  },
+];
+
 export default function AppSidebar({ current, onNav, user }) {
   const [settingsOpen, setSettingsOpen] = useState(current.startsWith('ajustes'));
 
   useEffect(() => {
-    if (current.startsWith('ajustes')) {
-      setSettingsOpen(true);
-    }
+    if (current.startsWith('ajustes')) setSettingsOpen(true);
   }, [current]);
 
-  const items = [
-    { id: 'asistencia', icon: 'check-circle', label: 'Asistencia' },
-    { id: 'miembros', icon: 'users', label: 'Miembros' },
-    { id: 'celulas', icon: 'house', label: 'Células' },
-    { id: 'agenda', icon: 'calendar-days', label: 'Agenda de cultos' },
-    { id: 'herramientas', icon: 'wrench', label: 'Herramientas' },
-    { id: 'reportes', icon: 'bar-chart-3', label: 'Reportes' },
-  ];
+  const handleNav = (id) => {
+    if (id === 'ajustes') setSettingsOpen((v) => !v);
+    onNav(id);
+  };
 
   return (
     <aside className="sb">
@@ -25,42 +40,44 @@ export default function AppSidebar({ current, onNav, user }) {
         <img src="/assets/logo.svg" alt="Linaje Santo" />
       </div>
       <nav className="sb-nav">
-        {items.map((it) => (
-          <div
-            key={it.id}
-            className={`sb-item ${current === it.id ? 'active' : ''}`}
-            onClick={() => onNav(it.id)}
-          >
-            <i data-lucide={it.icon}></i>{it.label}
+        {NAV_SECTIONS.map((section) => (
+          <div key={section.label}>
+            <div className="sb-section-label">{section.label}</div>
+            {section.items.map((it) => {
+              const isAjustes = it.id === 'ajustes';
+              const isActive = isAjustes ? current.startsWith('ajustes') : current === it.id;
+              return (
+                <div key={it.id}>
+                  <div
+                    className={`sb-item ${isActive ? 'active' : ''}`}
+                    onClick={() => handleNav(it.id)}
+                  >
+                    <span className="sb-dot" />
+                    {it.label}
+                  </div>
+                  {isAjustes && settingsOpen && (
+                    <div style={{ paddingLeft: 20 }}>
+                      <div
+                        className={`sb-item ${current === 'ajustes' ? 'active' : ''}`}
+                        onClick={() => onNav('ajustes')}
+                      >
+                        <span className="sb-dot" />
+                        General
+                      </div>
+                      <div
+                        className={`sb-item ${current === 'ajustes-tipos' ? 'active' : ''}`}
+                        onClick={() => onNav('ajustes-tipos')}
+                      >
+                        <span className="sb-dot" />
+                        Tipos de miembros
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         ))}
-
-        <div
-          className={`sb-item ${current.startsWith('ajustes') ? 'active' : ''}`}
-          onClick={() => {
-            setSettingsOpen((value) => !value);
-            onNav('ajustes');
-          }}
-        >
-          <i data-lucide="settings"></i>Ajustes
-        </div>
-
-        {settingsOpen && (
-          <div style={{ paddingLeft: 20 }}>
-            <div
-              className={`sb-item ${current === 'ajustes' ? 'active' : ''}`}
-              onClick={() => onNav('ajustes')}
-            >
-              <i data-lucide="shield"></i>General
-            </div>
-            <div
-              className={`sb-item ${current === 'ajustes-tipos' ? 'active' : ''}`}
-              onClick={() => onNav('ajustes-tipos')}
-            >
-              <i data-lucide="list-tree"></i>Tipos de miembros
-            </div>
-          </div>
-        )}
       </nav>
       <div className="sb-footer">
         <Avatar name={user.name} size="sm" />
@@ -68,7 +85,6 @@ export default function AppSidebar({ current, onNav, user }) {
           <div className="nm">{user.name}</div>
           <div className="rl">{user.role}</div>
         </div>
-        <i data-lucide="log-out" style={{ width: 16, height: 16, color: '#8A8A8A', cursor: 'pointer' }}></i>
       </div>
     </aside>
   );
