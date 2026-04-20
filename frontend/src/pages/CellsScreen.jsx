@@ -423,7 +423,7 @@ export default function CellsScreen({ toast }) {
 
   return (
     <div className="stack" style={{ gap: 20 }}>
-      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="page-hd">
         <div>
           <h2 className="section-title" style={{ margin: 0 }}>Células</h2>
           <p className="muted" style={{ margin: '4px 0 0' }}>
@@ -589,11 +589,7 @@ export default function CellsScreen({ toast }) {
 
                     <div className="stack" style={{ gap: 8, margin: '12px 0 16px' }}>
                       {suggestedMembers.map((member) => (
-                        <div
-                          key={member.id}
-                          className="row"
-                          style={{ justifyContent: 'space-between', border: '1px solid var(--ls-border)', borderRadius: 8, padding: 10 }}
-                        >
+                        <div key={member.id} className="list-row">
                           <div className="row" style={{ gap: 10, minWidth: 0 }}>
                             <Avatar name={member.nombre} size="sm" />
                             <div style={{ minWidth: 0 }}>
@@ -632,11 +628,7 @@ export default function CellsScreen({ toast }) {
 
                     <div className="stack" style={{ gap: 8, marginBottom: 16 }}>
                       {attendanceDraft.map((item) => (
-                        <div
-                          key={item.key}
-                          className="row"
-                          style={{ justifyContent: 'space-between', border: '1px solid var(--ls-border)', borderRadius: 8, padding: 10 }}
-                        >
+                        <div key={item.key} className="list-row">
                           <div style={{ minWidth: 0 }}>
                             <div style={{ fontWeight: 600 }}>
                               {item.miembro?.nombre || item.visitanteNombre || 'Visitante'}
@@ -735,7 +727,7 @@ export default function CellsScreen({ toast }) {
         </div>
       </div>
 
-      <div className="card" style={{ padding: 16 }}>
+      <div className="card">
         <div className="card-title" style={{ marginBottom: 12 }}>Resumen mensual por célula</div>
         <table className="tbl">
           <thead>
