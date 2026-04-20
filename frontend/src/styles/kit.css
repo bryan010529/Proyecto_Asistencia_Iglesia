@@ -36,11 +36,13 @@ html, body, #root {
 .sb-footer .rl { font-size: 11px; color: var(--ls-fg-muted); }
 
 /* ---------- Topbar ---------- */
-.tb .title { font-size: 18px; font-weight: 700; }
+.tb { grid-column: 2; height: var(--ls-topbar-h); background: linear-gradient(135deg, #2E75B6 0%, #1D4A74 100%); display: flex; align-items: center; padding: 0 24px; gap: 10px; }
+.tb .title { font-size: 15px; font-weight: 700; color: #fff; }
+.tb .sep { font-size: 14px; color: rgba(255,255,255,0.4); }
+.tb .crumbs { font-size: 12px; color: rgba(255,255,255,0.65); }
 .tb .spacer { flex: 1; }
-.tb .crumbs { font-size: 12px; color: var(--ls-fg-muted); display: flex; gap: 6px; align-items: center; }
-.tb .crumbs i { width: 14px; height: 14px; }
-.tb .time { font-size: 12px; color: var(--ls-fg-muted); font-variant-numeric: tabular-nums; }
+.tb .time { font-size: 11px; color: rgba(255,255,255,0.55); font-variant-numeric: tabular-nums; }
+.tb .tb-hamburger { display: none; background: transparent; border: none; cursor: pointer; padding: 4px; color: #fff; flex-shrink: 0; font-size: 20px; line-height: 1; }
 
 /* ---------- Buttons ---------- */
 .btn { font-family: var(--ls-font-sans); font-size: 14px; font-weight: 500; border-radius: 6px; padding: 0 16px; height: 36px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid transparent; cursor: pointer; transition: all 120ms ease-out; white-space: nowrap; }
@@ -96,7 +98,7 @@ html, body, #root {
 
 /* ---------- Table ---------- */
 .tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
-.tbl th { background: var(--ls-primary); color: #fff; text-align: left; padding: 11px 14px; font-weight: 700; font-size: 13px; }
+.tbl th { background: linear-gradient(135deg, #2E75B6, #1D4A74); color: #fff; text-align: left; padding: 11px 14px; font-weight: 700; font-size: 13px; }
 .tbl th:first-child { border-top-left-radius: 6px; }
 .tbl th:last-child { border-top-right-radius: 6px; }
 .tbl td { padding: 11px 14px; color: var(--ls-fg); border-bottom: 1px solid var(--ls-divider); }
