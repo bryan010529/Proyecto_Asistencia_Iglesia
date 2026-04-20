@@ -56,7 +56,7 @@ export default function AppSidebar({ current, onNav, user }) {
                     {it.label}
                   </div>
                   {isAjustes && settingsOpen && (
-                    <div style={{ paddingLeft: 20 }}>
+                    <div style={{ paddingLeft: 'var(--ls-space-5)' }}>
                       <div
                         className={`sb-item ${current === 'ajustes' ? 'active' : ''}`}
                         onClick={() => onNav('ajustes')}
