@@ -348,7 +348,7 @@ export function AttendanceScreen({ toast }) {
             ? `${culto.tipo} · ${formatDate(culto.fecha)}`
             : 'No hay culto activo'}
       </p>
-      <div className="card" style={{ marginBottom: 20, padding: 16 }}>
+      <div className="card" style={{ marginBottom: 20 }}>
         <div className="field">
           <label>Buscar miembro</label>
           <input
@@ -368,7 +368,7 @@ export function AttendanceScreen({ toast }) {
       </div>
       {loadingMembers && <p className="muted">Buscando miembros...</p>}
       {!loadingMembers && query && members.length === 0 && (
-        <div className="card" style={{ padding: 16, marginBottom: 12 }}>
+        <div className="card" style={{ marginBottom: 12 }}>
           <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
             <div>
               <div style={{ fontWeight: 700 }}>No encontramos a "{query}"</div>
@@ -387,19 +387,18 @@ export function AttendanceScreen({ toast }) {
           </div>
         </div>
       )}
-      <div className="stack" style={{ gap: 8 }}>
+      <div className="stack" style={{ gap: 10 }}>
         {members.map((member) => {
           const isRegistered = registeredIds.has(member.id);
           return (
             <div
               key={member.id}
-              className="card"
-              style={{ padding: 14, display: 'flex', alignItems: 'center', gap: 14 }}
+              className="member-item"
             >
               <Avatar name={member.nombre} size="md" />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>{member.nombre}</div>
-                <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
+                <div style={{ fontWeight: 700 }}>{member.nombre}</div>
+                <div className="muted">
                   <span className="tnum">{member.cedula}</span> · {member.celula || 'Sin célula'} · {member.rol}
                 </div>
               </div>
