@@ -80,10 +80,10 @@ export default function AppSidebar({ current, onNav, user }) {
         ))}
       </nav>
       <div className="sb-footer">
-        <Avatar name={user.name} size="sm" />
+        <Avatar name={user.nombre} size="sm" />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="nm">{user.name}</div>
-          <div className="rl">{user.role}</div>
+          <div className="nm">{user.nombre}</div>
+          <div className="rl">{user.rol}</div>
         </div>
       </div>
     </aside>
