@@ -370,7 +370,7 @@ export function MembersScreen({ toast }) {
   async function saveMember() {
     const payload = {
       nombre: form.nombre,
-      cedula: form.cedula,
+      cedula: form.cedula.trim() || `MBR-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       correo: form.correo || null,
       celula: form.celula || null,
       rol: form.rol,
@@ -502,7 +502,7 @@ export function MembersScreen({ toast }) {
         footer={(<><Button variant="ghost" onClick={() => { setShowModal(false); setEditingMember(null); }}>Cancelar</Button><Button variant="primary" onClick={saveMember}>Guardar</Button></>)}>
         <div className="stack">
           <Input label="Nombre completo" value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} />
-          <Input label="Cédula" value={form.cedula} onChange={(e) => setForm((f) => ({ ...f, cedula: e.target.value }))} />
+          <Input label="Cédula (opcional)" helper="Si la dejas vacía se genera un ID interno automático." value={form.cedula} onChange={(e) => setForm((f) => ({ ...f, cedula: e.target.value }))} />
           <Input label="Correo" type="email" value={form.correo} onChange={(e) => setForm((f) => ({ ...f, correo: e.target.value }))} />
           <Input label="Célula" value={form.celula} onChange={(e) => setForm((f) => ({ ...f, celula: e.target.value }))} />
           <div className="field"><label>Rol</label>
