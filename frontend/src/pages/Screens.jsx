@@ -603,53 +603,53 @@ export function ToolsScreen({ toast }) {
   async function submitBulkImport() {
     if (!bulkRows.length) return;
     setBulkUploading(true);
+    try {
+      const { data: tipos } = await supabase.from('tipos_miembro').select('id, nombre').eq('activo', true);
+      const tipoMap = {};
+      (tipos || []).forEach((t) => { tipoMap[t.nombre.toLowerCase().trim()] = t.id; });
 
-    const { data: tipos } = await supabase.from('tipos_miembro').select('id, nombre').eq('activo', true);
-    const tipoMap = {};
-    (tipos || []).forEach((t) => { tipoMap[t.nombre.toLowerCase().trim()] = t.id; });
+      const valid = [];
+      const sinCedula = [];
 
-    const valid = [];
-    const sinCedula = [];
+      for (const r of bulkRows) {
+        const nombre = getCell(r, 'nombre', 'Nombre') || '';
+        const cedula = getCell(r, 'cedula', 'Cédula');
+        const cedulaStr = cedula !== null ? String(cedula).trim() : '';
+        if (!nombre.trim()) continue;
+        if (!cedulaStr) { sinCedula.push(nombre.trim()); continue; }
+        const tipoRaw = getCell(r, 'tipoMiembro', 'TipoMiembro', 'tipo_miembro', 'Tipo Miembro') || '';
+        const tipo_miembro_id = tipoMap[String(tipoRaw).toLowerCase().trim()] || null;
+        valid.push({
+          nombre: nombre.trim(),
+          cedula: cedulaStr,
+          correo: getCell(r, 'correo', 'Correo') || null,
+          celula: getCell(r, 'celula', 'Célula', 'Celula') || null,
+          rol: getCell(r, 'rol', 'Rol') || 'Miembro',
+          ...(tipo_miembro_id ? { tipo_miembro_id } : {}),
+        });
+      }
 
-    for (const r of bulkRows) {
-      const nombre = getCell(r, 'nombre', 'Nombre') || '';
-      const cedula = getCell(r, 'cedula', 'Cédula', 'cedula');
-      const cedulaStr = cedula !== null ? String(cedula).trim() : '';
-      if (!nombre.trim()) continue;
-      if (!cedulaStr) { sinCedula.push(nombre.trim()); continue; }
-      const tipoRaw = getCell(r, 'tipoMiembro', 'TipoMiembro', 'tipo_miembro', 'Tipo Miembro') || '';
-      const tipo_miembro_id = tipoMap[String(tipoRaw).toLowerCase().trim()] || null;
-      valid.push({
-        nombre: nombre.trim(),
-        cedula: cedulaStr,
-        correo: getCell(r, 'correo', 'Correo') || null,
-        celula: getCell(r, 'celula', 'Célula', 'Celula') || null,
-        rol: getCell(r, 'rol', 'Rol') || 'Miembro',
-        ...(tipo_miembro_id ? { tipo_miembro_id } : {}),
-      });
-    }
+      if (sinCedula.length && !valid.length) {
+        toast({ type: 'error', title: 'Cédula requerida', msg: `${sinCedula.length} fila(s) no tienen cédula. La cédula es obligatoria para todos los miembros.` });
+        return;
+      }
 
-    if (sinCedula.length && !valid.length) {
+      if (!valid.length) {
+        toast({ type: 'error', title: 'Sin datos válidos', msg: 'No se encontraron filas con nombre y cédula. Verifica que las columnas del archivo coincidan con la plantilla.' });
+        return;
+      }
+
+      const { error, data } = await supabase.from('miembros').upsert(valid, { onConflict: 'cedula' }).select();
+      if (error) { toast({ type: 'error', title: 'No se pudo importar', msg: error.message }); return; }
+      const msg = sinCedula.length
+        ? `${data?.length || 0} miembros procesados. ${sinCedula.length} fila(s) omitidas por falta de cédula.`
+        : `${data?.length || 0} miembros procesados.`;
+      toast({ type: 'success', title: 'Carga masiva procesada', msg });
+      setBulkFileName('');
+      setBulkRows([]);
+    } finally {
       setBulkUploading(false);
-      toast({ type: 'error', title: 'Cédula requerida', msg: `${sinCedula.length} fila(s) no tienen cédula. La cédula es obligatoria para todos los miembros.` });
-      return;
     }
-
-    if (!valid.length) {
-      setBulkUploading(false);
-      toast({ type: 'error', title: 'Sin datos válidos', msg: 'No se encontraron filas con nombre y cédula. Verifica que las columnas del archivo coincidan con la plantilla.' });
-      return;
-    }
-
-    const { error, data } = await supabase.from('miembros').upsert(valid, { onConflict: 'cedula' }).select();
-    setBulkUploading(false);
-    if (error) { toast({ type: 'error', title: 'No se pudo importar', msg: error.message }); return; }
-    const msg = sinCedula.length
-      ? `${data?.length || 0} miembros procesados. ${sinCedula.length} fila(s) omitidas por falta de cédula.`
-      : `${data?.length || 0} miembros procesados.`;
-    toast({ type: 'success', title: 'Carga masiva procesada', msg });
-    setBulkFileName('');
-    setBulkRows([]);
   }
 
   return (
