@@ -599,7 +599,14 @@ export default function CampamentoScreen({ toast }) {
     const { data } = await supabase.from('tipos_miembro').select('id').eq('nombre', 'Campamento').maybeSingle();
     if (data) return data.id;
     const { data: created, error } = await supabase.from('tipos_miembro').insert({ nombre: 'Campamento', activo: true }).select('id').single();
-    if (error) throw error;
+    if (error) {
+      // Race condition: another request inserted first — re-fetch
+      if (error.code === '23505') {
+        const { data: existing } = await supabase.from('tipos_miembro').select('id').eq('nombre', 'Campamento').maybeSingle();
+        if (existing) return existing.id;
+      }
+      throw error;
+    }
     return created.id;
   }
 
@@ -631,6 +638,7 @@ export default function CampamentoScreen({ toast }) {
   async function inscribirPersonaNueva() {
     if (!selectedCamp || !quickForm.nombre.trim()) return;
     setSavingInsc(true);
+    let createdMiembroId = null;
     try {
       const tipo_miembro_id = await getOrCreateTipoCampamento();
       const cedula = `CAMP-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -640,6 +648,7 @@ export default function CampamentoScreen({ toast }) {
         .select('id')
         .single();
       if (miembroError) throw miembroError;
+      createdMiembroId = miembro.id;
       const { error: inscError } = await supabase.from('inscripciones_campamento').insert({
         campamento_id: selectedCamp.id,
         miembro_id: miembro.id,
@@ -649,6 +658,7 @@ export default function CampamentoScreen({ toast }) {
         registrado_por: user.id,
       });
       if (inscError) throw inscError;
+      createdMiembroId = null; // inscription succeeded — keep the member
       toast({ type: 'success', title: 'Inscripción registrada', msg: `${quickForm.nombre.trim()} agregado como participante de campamento.` });
       setInscModalOpen(false);
       setInscForm(EMPTY_INSCRIPCION_FORM);
@@ -657,6 +667,10 @@ export default function CampamentoScreen({ toast }) {
       await cargarInscripciones(selectedCamp.id);
       if (tab === 'reporte') await cargarReporte(selectedCamp.id);
     } catch (error) {
+      // Roll back the created member if the inscription step failed
+      if (createdMiembroId) {
+        await supabase.from('miembros').delete().eq('id', createdMiembroId);
+      }
       toast({ type: 'error', title: 'No se pudo inscribir', msg: getErrorMessage(error, 'Intenta nuevamente.') });
     } finally {
       setSavingInsc(false);
