@@ -137,6 +137,8 @@ export default function CampamentoScreen({ toast }) {
   const [inscModalOpen, setInscModalOpen] = useState(false);
   const [inscForm, setInscForm] = useState(EMPTY_INSCRIPCION_FORM);
   const [savingInsc, setSavingInsc] = useState(false);
+  const [quickPersonMode, setQuickPersonMode] = useState(false);
+  const [quickForm, setQuickForm] = useState({ nombre: '', correo: '', celula: '' });
 
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [selectedInsc, setSelectedInsc] = useState(null);
@@ -593,6 +595,14 @@ export default function CampamentoScreen({ toast }) {
     }
   }
 
+  async function getOrCreateTipoCampamento() {
+    const { data } = await supabase.from('tipos_miembro').select('id').eq('nombre', 'Campamento').maybeSingle();
+    if (data) return data.id;
+    const { data: created, error } = await supabase.from('tipos_miembro').insert({ nombre: 'Campamento', activo: true }).select('id').single();
+    if (error) throw error;
+    return created.id;
+  }
+
   async function saveInscripcion() {
     if (!selectedCamp) return;
     setSavingInsc(true);
@@ -605,16 +615,47 @@ export default function CampamentoScreen({ toast }) {
         saldo: Number(selectedCamp.precioBase) || 0,
         registrado_por: user.id,
       });
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
       toast({ type: 'success', title: 'Inscripción registrada' });
       setInscModalOpen(false);
       setInscForm(EMPTY_INSCRIPCION_FORM);
       await cargarInscripciones(selectedCamp.id);
-      if (tab === 'reporte') {
-        await cargarReporte(selectedCamp.id);
-      }
+      if (tab === 'reporte') await cargarReporte(selectedCamp.id);
+    } catch (error) {
+      toast({ type: 'error', title: 'No se pudo inscribir', msg: getErrorMessage(error, 'Intenta nuevamente.') });
+    } finally {
+      setSavingInsc(false);
+    }
+  }
+
+  async function inscribirPersonaNueva() {
+    if (!selectedCamp || !quickForm.nombre.trim()) return;
+    setSavingInsc(true);
+    try {
+      const tipo_miembro_id = await getOrCreateTipoCampamento();
+      const cedula = `CAMP-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      const { data: miembro, error: miembroError } = await supabase
+        .from('miembros')
+        .insert({ nombre: quickForm.nombre.trim(), cedula, correo: quickForm.correo || null, celula: quickForm.celula || null, rol: 'Visitante', tipo_miembro_id, estado: 'activo' })
+        .select('id')
+        .single();
+      if (miembroError) throw miembroError;
+      const { error: inscError } = await supabase.from('inscripciones_campamento').insert({
+        campamento_id: selectedCamp.id,
+        miembro_id: miembro.id,
+        fecha_inscripcion: inscForm.fechaInscripcion,
+        estado: inscForm.estado,
+        saldo: Number(selectedCamp.precioBase) || 0,
+        registrado_por: user.id,
+      });
+      if (inscError) throw inscError;
+      toast({ type: 'success', title: 'Inscripción registrada', msg: `${quickForm.nombre.trim()} agregado como participante de campamento.` });
+      setInscModalOpen(false);
+      setInscForm(EMPTY_INSCRIPCION_FORM);
+      setQuickForm({ nombre: '', correo: '', celula: '' });
+      setQuickPersonMode(false);
+      await cargarInscripciones(selectedCamp.id);
+      if (tab === 'reporte') await cargarReporte(selectedCamp.id);
     } catch (error) {
       toast({ type: 'error', title: 'No se pudo inscribir', msg: getErrorMessage(error, 'Intenta nuevamente.') });
     } finally {
@@ -1043,7 +1084,7 @@ export default function CampamentoScreen({ toast }) {
                 <div className="card" style={{ padding: 16 }}>
                   <div className="row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
                     <div className="card-title" style={{ margin: 0 }}>Inscripciones</div>
-                    <Button variant="primary" icon="user-plus" onClick={() => { setInscForm(EMPTY_INSCRIPCION_FORM); setInscModalOpen(true); }}>
+                    <Button variant="primary" icon="user-plus" onClick={() => { setInscForm(EMPTY_INSCRIPCION_FORM); setQuickForm({ nombre: '', correo: '', celula: '' }); setQuickPersonMode(false); setMemberSearch(''); setInscModalOpen(true); }}>
                       Inscribir miembro
                     </Button>
                   </div>
@@ -1428,40 +1469,90 @@ export default function CampamentoScreen({ toast }) {
       {/* Modal inscribir miembro */}
       <Modal
         open={inscModalOpen}
-        title="Inscribir miembro"
-        onClose={() => setInscModalOpen(false)}
+        title="Inscribir participante"
+        onClose={() => { setInscModalOpen(false); setQuickPersonMode(false); }}
         footer={(
           <>
-            <Button variant="ghost" onClick={() => setInscModalOpen(false)}>Cancelar</Button>
-            <Button variant="primary" onClick={saveInscripcion} disabled={savingInsc || !inscForm.miembroId}>
+            <Button variant="ghost" onClick={() => { setInscModalOpen(false); setQuickPersonMode(false); }}>Cancelar</Button>
+            <Button
+              variant="primary"
+              onClick={quickPersonMode ? inscribirPersonaNueva : saveInscripcion}
+              disabled={savingInsc || (quickPersonMode ? !quickForm.nombre.trim() : !inscForm.miembroId)}
+            >
               {savingInsc ? 'Guardando...' : 'Inscribir'}
             </Button>
           </>
         )}
       >
         <div className="stack">
-          <div className="field">
-            <label>Buscar miembro</label>
-            <input
-              className="inp"
-              value={memberSearch}
-              onChange={(e) => setMemberSearch(e.target.value)}
-              placeholder="Nombre o cédula"
-            />
-          </div>
-          <div className="field">
-            <label>Seleccionar miembro</label>
-            <select
-              className="inp"
-              value={inscForm.miembroId}
-              onChange={(e) => setInscForm((f) => ({ ...f, miembroId: e.target.value }))}
+          {/* Toggle modo */}
+          <div className="row" style={{ gap: 0, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)' }}>
+            <button
+              type="button"
+              style={{ flex: 1, padding: '8px 12px', background: !quickPersonMode ? 'var(--primary)' : 'transparent', color: !quickPersonMode ? '#fff' : 'var(--text-muted)', border: 'none', cursor: 'pointer', fontWeight: !quickPersonMode ? 600 : 400 }}
+              onClick={() => setQuickPersonMode(false)}
             >
-              <option value="">Selecciona un miembro</option>
-              {filteredMembers.map((m) => (
-                <option key={m.id} value={m.id}>{m.nombre} · {m.cedula}</option>
-              ))}
-            </select>
+              Miembro registrado
+            </button>
+            <button
+              type="button"
+              style={{ flex: 1, padding: '8px 12px', background: quickPersonMode ? 'var(--primary)' : 'transparent', color: quickPersonMode ? '#fff' : 'var(--text-muted)', border: 'none', borderLeft: '1px solid var(--border)', cursor: 'pointer', fontWeight: quickPersonMode ? 600 : 400 }}
+              onClick={() => setQuickPersonMode(true)}
+            >
+              Persona nueva
+            </button>
           </div>
+
+          {!quickPersonMode ? (
+            <>
+              <div className="field">
+                <label>Buscar miembro</label>
+                <input
+                  className="inp"
+                  value={memberSearch}
+                  onChange={(e) => setMemberSearch(e.target.value)}
+                  placeholder="Nombre o cédula"
+                />
+              </div>
+              <div className="field">
+                <label>Seleccionar miembro</label>
+                <select
+                  className="inp"
+                  value={inscForm.miembroId}
+                  onChange={(e) => setInscForm((f) => ({ ...f, miembroId: e.target.value }))}
+                >
+                  <option value="">Selecciona un miembro</option>
+                  {filteredMembers.map((m) => (
+                    <option key={m.id} value={m.id}>{m.nombre} · {m.cedula}</option>
+                  ))}
+                </select>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="muted" style={{ margin: 0, fontSize: 13 }}>Se creará como participante de campamento. Solo el nombre es obligatorio.</p>
+              <Input
+                label="Nombre *"
+                value={quickForm.nombre}
+                onChange={(e) => setQuickForm((f) => ({ ...f, nombre: e.target.value }))}
+                placeholder="Nombre completo"
+              />
+              <Input
+                label="Correo"
+                type="email"
+                value={quickForm.correo}
+                onChange={(e) => setQuickForm((f) => ({ ...f, correo: e.target.value }))}
+                placeholder="opcional"
+              />
+              <Input
+                label="Célula"
+                value={quickForm.celula}
+                onChange={(e) => setQuickForm((f) => ({ ...f, celula: e.target.value }))}
+                placeholder="opcional"
+              />
+            </>
+          )}
+
           <Input
             label="Fecha de inscripción"
             type="date"
