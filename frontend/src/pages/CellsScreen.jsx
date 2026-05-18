@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import api from '../api/axiosConfig';
+import { supabase } from '../lib/supabase';
 import { Avatar, Badge, Button, Input, Modal, SearchField } from '../components/Primitives';
-import { useApi } from '../hooks/useApi';
+import { useAuth } from '../context/AuthContext';
 
 const CURRENT_MONTH = new Date().toISOString().slice(0, 7);
 const EMPTY_CELL_FORM = {
@@ -26,7 +26,7 @@ const EMPTY_REPORT_FORM = {
 };
 
 function getErrorMessage(error, fallback) {
-  return error?.response?.data?.error || fallback;
+  return error?.message || error?.response?.data?.error || fallback;
 }
 
 function formatDate(value) {
@@ -54,7 +54,65 @@ function normalizeText(value) {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
+function getMonthBounds(month) {
+  const [year, monthIndex] = String(month).split('-').map(Number);
+  const lastDay = new Date(year, monthIndex, 0).getDate();
+  return {
+    start: `${month}-01`,
+    end: `${month}-${String(lastDay).padStart(2, '0')}`,
+  };
+}
+
+function mapCell(cell) {
+  return {
+    ...cell,
+    liderMiembroId: cell.lider_miembro_id ?? null,
+    liderNombre: cell.miembros?.nombre || '',
+    diaReunion: cell.dia_reunion || '',
+    horaReunion: cell.hora_reunion || '',
+  };
+}
+
+function mapMeeting(meeting, asistentes = 0) {
+  return {
+    ...meeting,
+    asistentes,
+    estado: asistentes > 0 ? 'completada' : 'planificada',
+  };
+}
+
+function mapAttendance(item) {
+  return {
+    id: item.id,
+    miembroId: item.miembro_id ?? null,
+    visitanteNombre: item.visitante_nombre || '',
+    comentario: item.comentario || '',
+    miembro: item.miembros
+      ? {
+        ...item.miembros,
+        celula: item.miembros.celula || '',
+      }
+      : null,
+  };
+}
+
+function mapReport(report) {
+  if (!report) {
+    return null;
+  }
+
+  return {
+    ...report,
+    visitantes: report.visitantes ?? 0,
+    conversiones: report.conversiones ?? 0,
+    ofrenda: report.ofrenda ?? 0,
+    observaciones: report.observaciones || '',
+    animo: report.animo || 'Bien',
+  };
+}
+
 export default function CellsScreen({ toast }) {
+  const { user } = useAuth();
   const [month, setMonth] = useState(CURRENT_MONTH);
   const [selectedCellId, setSelectedCellId] = useState(null);
   const [selectedMeetingId, setSelectedMeetingId] = useState(null);
@@ -72,55 +130,241 @@ export default function CellsScreen({ toast }) {
   const [savingAttendance, setSavingAttendance] = useState(false);
   const [savingReport, setSavingReport] = useState(false);
   const [reportForm, setReportForm] = useState(EMPTY_REPORT_FORM);
+  const [cells, setCells] = useState([]);
+  const [summary, setSummary] = useState([]);
+  const [members, setMembers] = useState([]);
+  const [meetings, setMeetings] = useState([]);
+  const [meetingDetail, setMeetingDetail] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [loadingMeetings, setLoadingMeetings] = useState(false);
+  const [loadingMeetingDetail, setLoadingMeetingDetail] = useState(false);
 
-  const {
-    data: cells = [],
-    refetch: refetchCells,
-  } = useApi(async () => {
-    const response = await api.get('/celulas');
-    return response.data.data || [];
-  }, { initialData: [] });
+  async function cargarCelulas() {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('celulas')
+      .select('*, miembros(nombre)')
+      .order('nombre');
 
-  const {
-    data: summary = [],
-    refetch: refetchSummary,
-  } = useApi(async () => {
-    const response = await api.get('/celulas/resumen', { params: { mes: month } });
-    return response.data.data || [];
-  }, { deps: [month], initialData: [] });
+    if (error) {
+      setLoading(false);
+      throw error;
+    }
 
-  const {
-    data: members = [],
-  } = useApi(async () => {
-    const response = await api.get('/miembros', { params: { estado: 'activo' } });
-    return response.data.data || [];
-  }, { initialData: [] });
+    setCells((data || []).map(mapCell));
+    setLoading(false);
+  }
 
-  const {
-    data: meetings = [],
-    loading: loadingMeetings,
-    refetch: refetchMeetings,
-  } = useApi(async () => {
-    if (!selectedCellId) {
+  async function cargarMiembros() {
+    const { data, error } = await supabase
+      .from('miembros')
+      .select('id, nombre, cedula, celula, rol, estado')
+      .eq('estado', 'activo')
+      .order('nombre');
+
+    if (error) {
+      throw error;
+    }
+
+    setMembers(data || []);
+  }
+
+  async function cargarReuniones(cellId = selectedCellId, selectedMonth = month) {
+    if (!cellId) {
+      setLoadingMeetings(false);
+      setMeetings([]);
       return [];
     }
 
-    const response = await api.get(`/celulas/${selectedCellId}/reuniones`, { params: { mes: month } });
-    return response.data.data || [];
-  }, { deps: [month, selectedCellId], initialData: [] });
+    setLoadingMeetings(true);
+    const { start, end } = getMonthBounds(selectedMonth);
+    const { data, error } = await supabase
+      .from('reuniones_celula')
+      .select('id, celula_id, fecha, tema, comentarios, created_at')
+      .eq('celula_id', cellId)
+      .gte('fecha', start)
+      .lte('fecha', end)
+      .order('fecha', { ascending: false });
 
-  const {
-    data: meetingDetail,
-    loading: loadingMeetingDetail,
-    refetch: refetchMeetingDetail,
-  } = useApi(async () => {
-    if (!selectedMeetingId) {
+    if (error) {
+      setLoadingMeetings(false);
+      throw error;
+    }
+
+    const reuniones = data || [];
+    const reunionIds = reuniones.map((item) => item.id);
+    let asistenciaMap = new Map();
+
+    if (reunionIds.length) {
+      const { data: asistenciaData } = await supabase
+        .from('celula_asistencias')
+        .select('id, reunion_id')
+        .in('reunion_id', reunionIds);
+
+      asistenciaMap = (asistenciaData || []).reduce((accumulator, item) => {
+        accumulator.set(item.reunion_id, (accumulator.get(item.reunion_id) || 0) + 1);
+        return accumulator;
+      }, new Map());
+    }
+
+    const nextMeetings = reuniones.map((item) => mapMeeting(item, asistenciaMap.get(item.id) || 0));
+    setMeetings(nextMeetings);
+    setLoadingMeetings(false);
+    return nextMeetings;
+  }
+
+  async function cargarDetalleReunion(meetingId = selectedMeetingId) {
+    if (!meetingId) {
+      setLoadingMeetingDetail(false);
+      setMeetingDetail(null);
       return null;
     }
 
-    const response = await api.get(`/celulas/reuniones/${selectedMeetingId}`);
-    return response.data.data || null;
-  }, { deps: [selectedMeetingId], initialData: null });
+    setLoadingMeetingDetail(true);
+    const { data: meetingData, error } = await supabase
+      .from('reuniones_celula')
+      .select('id, celula_id, fecha, tema, comentarios, created_at')
+      .eq('id', meetingId)
+      .single();
+
+    if (error) {
+      setLoadingMeetingDetail(false);
+      throw error;
+    }
+
+    const [{ data: asistenciaData }, { data: reporteData }] = await Promise.all([
+      supabase
+        .from('celula_asistencias')
+        .select('id, reunion_id, miembro_id, visitante_nombre, comentario, miembros(id, nombre, celula, rol)')
+        .eq('reunion_id', meetingId)
+        .order('hora_registro'),
+      supabase
+        .from('reportes_celula')
+        .select('*')
+        .eq('reunion_id', meetingId)
+        .maybeSingle(),
+    ]);
+
+    const asistencia = (asistenciaData || []).map(mapAttendance);
+    const detail = {
+      ...mapMeeting(meetingData, asistencia.length),
+      asistencia,
+      reporte: mapReport(reporteData || null),
+    };
+
+    setMeetingDetail(detail);
+    setLoadingMeetingDetail(false);
+    return detail;
+  }
+
+  async function cargarResumen(selectedMonth = month) {
+    const { start, end } = getMonthBounds(selectedMonth);
+    const [{ data: celulasData, error: cellsError }, { data: reunionesData, error: meetingsError }, { data: reportesData, error: reportsError }] = await Promise.all([
+      supabase.from('celulas').select('id, nombre, lider_miembro_id, miembros(nombre)').order('nombre'),
+      supabase.from('reuniones_celula').select('id, celula_id, fecha').gte('fecha', start).lte('fecha', end),
+      supabase.from('reportes_celula').select('reunion_id, visitantes, conversiones, ofrenda'),
+    ]);
+
+    if (cellsError || meetingsError || reportsError) {
+      throw cellsError || meetingsError || reportsError;
+    }
+
+    const reuniones = reunionesData || [];
+    const reunionIds = reuniones.map((item) => item.id);
+    let asistenciaMap = new Map();
+
+    if (reunionIds.length) {
+      const { data: asistenciaData } = await supabase
+        .from('celula_asistencias')
+        .select('id, reunion_id')
+        .in('reunion_id', reunionIds);
+
+      asistenciaMap = (asistenciaData || []).reduce((accumulator, item) => {
+        accumulator.set(item.reunion_id, (accumulator.get(item.reunion_id) || 0) + 1);
+        return accumulator;
+      }, new Map());
+    }
+
+    const reportesPorReunion = new Map((reportesData || []).map((item) => [item.reunion_id, item]));
+    const nextSummary = (celulasData || []).map((cell) => {
+      const cellMeetings = reuniones.filter((meeting) => meeting.celula_id === cell.id);
+      const asistentes = cellMeetings.reduce((sum, meeting) => sum + (asistenciaMap.get(meeting.id) || 0), 0);
+      const reportes = cellMeetings
+        .map((meeting) => reportesPorReunion.get(meeting.id))
+        .filter(Boolean);
+
+      return {
+        id: cell.id,
+        nombre: cell.nombre,
+        liderNombre: cell.miembros?.nombre || '',
+        reuniones: cellMeetings.length,
+        asistentes,
+        promedioAsistencia: cellMeetings.length ? Number((asistentes / cellMeetings.length).toFixed(1)) : 0,
+        visitantes: reportes.reduce((sum, report) => sum + Number(report.visitantes || 0), 0),
+        conversiones: reportes.reduce((sum, report) => sum + Number(report.conversiones || 0), 0),
+        ofrenda: reportes.reduce((sum, report) => sum + Number(report.ofrenda || 0), 0),
+      };
+    });
+
+    setSummary(nextSummary);
+    return nextSummary;
+  }
+
+  async function refreshCellsData() {
+    await Promise.all([cargarCelulas(), cargarResumen(), cargarMiembros()]);
+  }
+
+  useEffect(() => {
+    refreshCellsData().catch((error) => {
+      toast({
+        type: 'error',
+        title: 'No se pudieron cargar las células',
+        msg: getErrorMessage(error, 'Intenta nuevamente.'),
+      });
+    });
+
+    const channel = supabase
+      .channel('celulas-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'celulas' }, () => {
+        refreshCellsData().catch(() => {});
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reuniones_celula' }, () => {
+        refreshCellsData().catch(() => {});
+      })
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, []);
+
+  useEffect(() => {
+    cargarResumen(month).catch((error) => {
+      toast({
+        type: 'error',
+        title: 'No se pudo cargar el resumen mensual',
+        msg: getErrorMessage(error, 'Intenta nuevamente.'),
+      });
+    });
+  }, [month, toast]);
+
+  useEffect(() => {
+    cargarReuniones(selectedCellId, month).catch((error) => {
+      toast({
+        type: 'error',
+        title: 'No se pudieron cargar las reuniones',
+        msg: getErrorMessage(error, 'Intenta nuevamente.'),
+      });
+    });
+  }, [month, selectedCellId, toast]);
+
+  useEffect(() => {
+    cargarDetalleReunion(selectedMeetingId).catch((error) => {
+      toast({
+        type: 'error',
+        title: 'No se pudo cargar el detalle de la reunión',
+        msg: getErrorMessage(error, 'Intenta nuevamente.'),
+      });
+    });
+  }, [selectedMeetingId, toast]);
 
   useEffect(() => {
     if (!cells.length) {
@@ -299,20 +543,30 @@ export default function CellsScreen({ toast }) {
 
     try {
       const payload = {
-        ...cellForm,
-        liderMiembroId: cellForm.liderMiembroId ? Number(cellForm.liderMiembroId) : undefined,
+        nombre: cellForm.nombre,
+        sector: cellForm.sector || null,
+        lider_miembro_id: cellForm.liderMiembroId ? Number(cellForm.liderMiembroId) : null,
+        dia_reunion: cellForm.diaReunion || null,
+        hora_reunion: cellForm.horaReunion || null,
+        activa: cellForm.activa,
       };
 
       if (editingCell) {
-        await api.put(`/celulas/${editingCell.id}`, payload);
+        const { error } = await supabase.from('celulas').update(payload).eq('id', editingCell.id);
+        if (error) {
+          throw error;
+        }
         toast({ type: 'success', title: 'Célula actualizada', msg: cellForm.nombre });
       } else {
-        await api.post('/celulas', payload);
+        const { error } = await supabase.from('celulas').insert(payload);
+        if (error) {
+          throw error;
+        }
         toast({ type: 'success', title: 'Célula creada', msg: cellForm.nombre });
       }
 
       setCellModalOpen(false);
-      await Promise.all([refetchCells(), refetchSummary()]);
+      await Promise.all([cargarCelulas(), cargarResumen(month)]);
     } catch (error) {
       toast({
         type: 'error',
@@ -332,15 +586,24 @@ export default function CellsScreen({ toast }) {
     setSavingMeeting(true);
 
     try {
-      const response = await api.post('/celulas/reuniones', {
-        celulaId: selectedCell.id,
-        ...meetingForm,
-      });
+      const { data: created, error } = await supabase
+        .from('reuniones_celula')
+        .insert({
+          celula_id: selectedCell.id,
+          fecha: meetingForm.fecha,
+          tema: meetingForm.tema || null,
+          comentarios: meetingForm.comentarios || null,
+        })
+        .select()
+        .single();
 
-      const created = response.data.data;
+      if (error) {
+        throw error;
+      }
+
       toast({ type: 'success', title: 'Reunión creada', msg: `${selectedCell.nombre} · ${meetingForm.fecha}` });
       setMeetingModalOpen(false);
-      await Promise.all([refetchMeetings(), refetchSummary()]);
+      await Promise.all([cargarReuniones(selectedCell.id, month), cargarResumen(month)]);
       setSelectedMeetingId(created.id);
     } catch (error) {
       toast({
@@ -361,13 +624,29 @@ export default function CellsScreen({ toast }) {
     setSavingAttendance(true);
 
     try {
-      await api.post(`/celulas/reuniones/${selectedMeetingId}/asistencia`, {
-        registros: attendanceDraft.map((item) => ({
-          miembroId: item.miembroId || undefined,
-          visitanteNombre: item.visitanteNombre || undefined,
-          comentario: item.comentario || undefined,
-        })),
-      });
+      const registros = attendanceDraft.map((item) => ({
+        reunion_id: selectedMeetingId,
+        miembro_id: item.miembroId || null,
+        visitante_nombre: item.visitanteNombre || null,
+        comentario: item.comentario || null,
+        registrado_por: user?.id || null,
+      }));
+
+      const { error: deleteError } = await supabase
+        .from('celula_asistencias')
+        .delete()
+        .eq('reunion_id', selectedMeetingId);
+
+      if (deleteError) {
+        throw deleteError;
+      }
+
+      if (registros.length) {
+        const { error: insertError } = await supabase.from('celula_asistencias').insert(registros);
+        if (insertError) {
+          throw insertError;
+        }
+      }
 
       toast({
         type: 'success',
@@ -375,7 +654,11 @@ export default function CellsScreen({ toast }) {
         msg: `${attendanceDraft.length} registros procesados`,
       });
 
-      await Promise.all([refetchMeetingDetail(), refetchMeetings(), refetchSummary()]);
+      await Promise.all([
+        cargarDetalleReunion(selectedMeetingId),
+        cargarReuniones(selectedCellId, month),
+        cargarResumen(month),
+      ]);
     } catch (error) {
       toast({
         type: 'error',
@@ -395,13 +678,23 @@ export default function CellsScreen({ toast }) {
     setSavingReport(true);
 
     try {
-      await api.put(`/celulas/reuniones/${selectedMeetingId}/reporte`, {
+      const payload = {
+        reunion_id: selectedMeetingId,
         visitantes: Number(reportForm.visitantes || 0),
         conversiones: Number(reportForm.conversiones || 0),
         ofrenda: Number(reportForm.ofrenda || 0),
-        observaciones: reportForm.observaciones,
+        observaciones: reportForm.observaciones || null,
         animo: reportForm.animo,
-      });
+      };
+      const hasExistingReport = Boolean(meetingDetail?.reporte?.id);
+      const query = hasExistingReport
+        ? supabase.from('reportes_celula').update(payload).eq('id', meetingDetail.reporte.id)
+        : supabase.from('reportes_celula').insert(payload);
+      const { error } = await query;
+
+      if (error) {
+        throw error;
+      }
 
       toast({
         type: 'success',
@@ -409,7 +702,7 @@ export default function CellsScreen({ toast }) {
         msg: selectedCell?.nombre || 'Reunión actualizada',
       });
 
-      await Promise.all([refetchMeetingDetail(), refetchSummary()]);
+      await Promise.all([cargarDetalleReunion(selectedMeetingId), cargarResumen(month)]);
     } catch (error) {
       toast({
         type: 'error',
