@@ -573,7 +573,7 @@ export function ToolsScreen({ toast }) {
 
   async function descargarPlantilla() {
     const { utils, writeFile } = await import('xlsx');
-    const ws = utils.aoa_to_sheet([['nombre', 'cedula', 'correo', 'celula', 'rol']]);
+    const ws = utils.aoa_to_sheet([['nombre', 'cedula', 'correo', 'celula', 'rol', 'tipoMiembro']]);
     const wb = utils.book_new();
     utils.book_append_sheet(wb, ws, 'Miembros');
     writeFile(wb, 'plantilla-miembros.xlsx');
@@ -586,28 +586,70 @@ export function ToolsScreen({ toast }) {
     const buffer = await file.arrayBuffer();
     const wb = read(buffer);
     const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows = utils.sheet_to_json(ws);
+    const rows = utils.sheet_to_json(ws, { defval: '' });
     setBulkRows(rows);
     setBulkFileName(file.name);
     e.target.value = '';
   }
 
+  function getCell(row, ...keys) {
+    for (const k of keys) {
+      const val = row[k];
+      if (val !== undefined && val !== null && val !== '') return val;
+    }
+    return null;
+  }
+
   async function submitBulkImport() {
     if (!bulkRows.length) return;
     setBulkUploading(true);
-    const payload = bulkRows.map((r) => ({
-      nombre: r.nombre || r.Nombre || '',
-      cedula: String(r.cedula || r.Cédula || ''),
-      correo: r.correo || r.Correo || null,
-      celula: r.celula || r.Célula || null,
-      rol: r.rol || r.Rol || 'Miembro',
-    })).filter((r) => r.nombre && r.cedula);
-    const { error, data } = await supabase.from('miembros').upsert(payload, { onConflict: 'cedula' }).select();
-    setBulkUploading(false);
-    if (error) { toast({ type: 'error', title: 'No se pudo importar', msg: error.message }); return; }
-    toast({ type: 'success', title: 'Carga masiva procesada', msg: `${data?.length || 0} miembros procesados.` });
-    setBulkFileName('');
-    setBulkRows([]);
+    try {
+      const { data: tipos } = await supabase.from('tipos_miembro').select('id, nombre').eq('activo', true);
+      const tipoMap = {};
+      (tipos || []).forEach((t) => { tipoMap[t.nombre.toLowerCase().trim()] = t.id; });
+
+      const valid = [];
+      const sinCedula = [];
+
+      for (const r of bulkRows) {
+        const nombre = getCell(r, 'nombre', 'Nombre') || '';
+        const cedula = getCell(r, 'cedula', 'Cédula');
+        const cedulaStr = cedula !== null ? String(cedula).trim() : '';
+        if (!nombre.trim()) continue;
+        if (!cedulaStr) { sinCedula.push(nombre.trim()); continue; }
+        const tipoRaw = getCell(r, 'tipoMiembro', 'TipoMiembro', 'tipo_miembro', 'Tipo Miembro') || '';
+        const tipo_miembro_id = tipoMap[String(tipoRaw).toLowerCase().trim()] || null;
+        valid.push({
+          nombre: nombre.trim(),
+          cedula: cedulaStr,
+          correo: getCell(r, 'correo', 'Correo') || null,
+          celula: getCell(r, 'celula', 'Célula', 'Celula') || null,
+          rol: getCell(r, 'rol', 'Rol') || 'Miembro',
+          ...(tipo_miembro_id ? { tipo_miembro_id } : {}),
+        });
+      }
+
+      if (sinCedula.length && !valid.length) {
+        toast({ type: 'error', title: 'Cédula requerida', msg: `${sinCedula.length} fila(s) no tienen cédula. La cédula es obligatoria para todos los miembros.` });
+        return;
+      }
+
+      if (!valid.length) {
+        toast({ type: 'error', title: 'Sin datos válidos', msg: 'No se encontraron filas con nombre y cédula. Verifica que las columnas del archivo coincidan con la plantilla.' });
+        return;
+      }
+
+      const { error, data } = await supabase.from('miembros').upsert(valid, { onConflict: 'cedula' }).select();
+      if (error) { toast({ type: 'error', title: 'No se pudo importar', msg: error.message }); return; }
+      const msg = sinCedula.length
+        ? `${data?.length || 0} miembros procesados. ${sinCedula.length} fila(s) omitidas por falta de cédula.`
+        : `${data?.length || 0} miembros procesados.`;
+      toast({ type: 'success', title: 'Carga masiva procesada', msg });
+      setBulkFileName('');
+      setBulkRows([]);
+    } finally {
+      setBulkUploading(false);
+    }
   }
 
   return (
@@ -616,7 +658,7 @@ export function ToolsScreen({ toast }) {
         <div className="row" style={{ justifyContent: 'space-between', marginBottom: 16, alignItems: 'center' }}>
           <div>
             <div className="card-title" style={{ marginBottom: 4 }}>Carga masiva de miembros</div>
-            <p className="muted" style={{ margin: 0 }}>Importa miembros desde Excel con columnas: nombre, cedula, correo, celula, rol.</p>
+            <p className="muted" style={{ margin: 0 }}>Importa miembros desde Excel con columnas: nombre, cedula, correo, celula, rol, tipoMiembro.</p>
           </div>
           <Button variant="secondary" icon="download" onClick={descargarPlantilla}>Descargar plantilla</Button>
         </div>
