@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import api from '../api/axiosConfig';
+import { supabase } from '../lib/supabase';
 import { Avatar, Badge, Button, Input, Modal } from '../components/Primitives';
-import { useApi } from '../hooks/useApi';
+import { useAuth } from '../context/AuthContext';
 
 const TODAY = new Date().toISOString().slice(0, 10);
 
@@ -47,7 +47,7 @@ const EMPTY_CABANA_FORM = {
 };
 
 function getErrorMessage(error, fallback) {
-  return error?.response?.data?.error || fallback;
+  return error?.message || error?.response?.data?.error || fallback;
 }
 
 function formatDate(value) {
@@ -72,11 +72,54 @@ function normalizeText(value) {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
+function mapCamp(camp) {
+  return {
+    ...camp,
+    fechaInicio: camp.fecha_inicio,
+    fechaFin: camp.fecha_fin,
+    capacidadMaxima: camp.capacidad_maxima,
+    precioBase: Number(camp.precio_base || 0),
+  };
+}
+
+function mapInscripcion(inscripcion, cabanaAsignada = null) {
+  return {
+    ...inscripcion,
+    miembroId: inscripcion.miembro_id,
+    miembroNombre: inscripcion.miembros?.nombre || '',
+    miembroCedula: inscripcion.miembros?.cedula || '',
+    fechaInscripcion: inscripcion.fecha_inscripcion,
+    totalPagado: Number(inscripcion.total_pagado || 0),
+    totalDescuentos: Number(inscripcion.total_descuentos || 0),
+    saldo: Number(inscripcion.saldo || 0),
+    cabanaAsignada,
+  };
+}
+
+function mapPago(pago) {
+  return {
+    ...pago,
+    fechaPago: pago.fecha_pago,
+    metodoPago: pago.metodo_pago,
+  };
+}
+
+function mapGasto(gasto) {
+  return {
+    ...gasto,
+    concepto: gasto.descripcion,
+    fechaGasto: gasto.fecha,
+    nota: gasto.categoria || '',
+    registradoPorNombre: '',
+  };
+}
+
 const ESTADO_CAMP_LABEL = { activo: 'Activo', cerrado: 'Cerrado', cancelado: 'Cancelado' };
 const ESTADO_INSC_LABEL = { pendiente: 'Pendiente', confirmada: 'Confirmada', cancelada: 'Cancelada' };
 const ESTADO_INSC_VARIANT = { pendiente: 'neutral', confirmada: 'success', cancelada: 'danger' };
 
 export default function CampamentoScreen({ toast }) {
+  const { user } = useAuth();
   const [selectedCampId, setSelectedCampId] = useState(null);
   const [tab, setTab] = useState('inscripciones');
   const [memberSearch, setMemberSearch] = useState('');
@@ -117,93 +160,318 @@ export default function CampamentoScreen({ toast }) {
   const [asignarCabanaId, setAsignarCabanaId] = useState('');
   const [asignarInscId, setAsignarInscId] = useState('');
   const [savingAsignacion, setSavingAsignacion] = useState(false);
+  const [campamentos, setCampamentos] = useState([]);
+  const [members, setMembers] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const {
-    data: campamentos = [],
-    refetch: refetchCampamentos,
-  } = useApi(async () => {
-    const res = await api.get('/campamentos');
-    return res.data.data || [];
-  }, { initialData: [] });
+  async function cargarCampamentos() {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('campamentos')
+      .select('*')
+      .order('fecha_inicio', { ascending: false });
 
-  const {
-    data: members = [],
-  } = useApi(async () => {
-    const res = await api.get('/miembros', { params: { estado: 'activo' } });
-    return res.data.data || [];
-  }, { initialData: [] });
-
-  const {
-    data: inscripciones = [],
-    refetch: refetchInscripciones,
-  } = useApi(async () => {
-    if (!selectedCampId) return [];
-    const res = await api.get(`/campamentos/${selectedCampId}/inscripciones`);
-    return res.data.data || [];
-  }, { deps: [selectedCampId], initialData: [] });
-
-  const {
-    data: cabanas = [],
-    refetch: refetchCabanas,
-  } = useApi(async () => {
-    if (!selectedCampId) return [];
-    const res = await api.get(`/campamentos/${selectedCampId}/cabanas`);
-    return res.data.data || [];
-  }, { deps: [selectedCampId], initialData: [] });
-
-  const {
-    data: gastos = [],
-    refetch: refetchGastos,
-  } = useApi(async () => {
-    if (!selectedCampId) return [];
-    const res = await api.get(`/campamentos/${selectedCampId}/gastos`);
-    return res.data.data || [];
-  }, { deps: [selectedCampId], initialData: [] });
-
-  const {
-    data: inscDetail,
-    refetch: refetchDetail,
-  } = useApi(async () => {
-    if (!selectedInsc?.id) return null;
-    const res = await api.get(`/campamentos/inscripciones/${selectedInsc.id}`);
-    return res.data.data || null;
-  }, { deps: [selectedInsc?.id], initialData: null });
-
-  const {
-    data: reporte,
-    error: reporteError,
-    refetch: refetchReporte,
-  } = useApi(async () => {
-    if (!selectedCampId || tab !== 'reporte') return null;
-    const res = await api.get(`/campamentos/${selectedCampId}/reporte/resumen`);
-    return res.data.data || null;
-  }, { deps: [selectedCampId, tab], initialData: null });
-
-  useEffect(() => {
-    setInscripcionesState(inscripciones);
-  }, [inscripciones]);
-
-  useEffect(() => {
-    setCabanasState(cabanas);
-  }, [cabanas]);
-
-  useEffect(() => {
-    setGastosState(gastos);
-  }, [gastos]);
-
-  useEffect(() => {
-    setInscDetailState(inscDetail);
-  }, [inscDetail]);
-
-  useEffect(() => {
-    setReporteState(reporte);
-  }, [reporte]);
-
-  useEffect(() => {
-    if (reporteError && selectedCampId && tab === 'reporte') {
-      toast({ type: 'error', title: 'No se pudo cargar el reporte', msg: getErrorMessage(reporteError, 'Intenta nuevamente.') });
+    if (error) {
+      setLoading(false);
+      throw error;
     }
-  }, [reporteError, selectedCampId, tab, toast]);
+
+    setCampamentos((data || []).map(mapCamp));
+    setLoading(false);
+  }
+
+  async function cargarMiembros() {
+    const { data, error } = await supabase
+      .from('miembros')
+      .select('id, nombre, cedula, estado')
+      .eq('estado', 'activo')
+      .order('nombre');
+
+    if (error) {
+      throw error;
+    }
+
+    setMembers(data || []);
+  }
+
+  async function cargarInscripciones(campamentoId = selectedCampId) {
+    if (!campamentoId) {
+      setInscripcionesState([]);
+      return [];
+    }
+
+    const { data, error } = await supabase
+      .from('inscripciones_campamento')
+      .select('*, miembros(nombre, cedula)')
+      .eq('campamento_id', campamentoId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    const inscripciones = data || [];
+    const ids = inscripciones.map((item) => item.id);
+    let cabanasPorInscripcion = new Map();
+
+    if (ids.length) {
+      const { data: asignacionesData } = await supabase
+        .from('asignaciones_cabana')
+        .select('inscripcion_id, cabanas(nombre)')
+        .in('inscripcion_id', ids);
+
+      cabanasPorInscripcion = new Map((asignacionesData || []).map((item) => [item.inscripcion_id, item.cabanas?.nombre || null]));
+    }
+
+    const nextInscripciones = inscripciones.map((item) => mapInscripcion(item, cabanasPorInscripcion.get(item.id) || null));
+    setInscripcionesState(nextInscripciones);
+    return nextInscripciones;
+  }
+
+  async function cargarCabanas(campamentoId = selectedCampId) {
+    if (!campamentoId) {
+      setCabanasState([]);
+      return [];
+    }
+
+    const { data, error } = await supabase
+      .from('cabanas')
+      .select('*')
+      .eq('campamento_id', campamentoId)
+      .order('nombre');
+
+    if (error) {
+      throw error;
+    }
+
+    const cabanas = data || [];
+    const cabanaIds = cabanas.map((item) => item.id);
+    let miembrosPorCabana = new Map();
+
+    if (cabanaIds.length) {
+      const { data: asignacionesData } = await supabase
+        .from('asignaciones_cabana')
+        .select('inscripcion_id, cabana_id, inscripciones_campamento(id, estado, miembros(nombre, cedula))')
+        .in('cabana_id', cabanaIds);
+
+      miembrosPorCabana = (asignacionesData || []).reduce((accumulator, item) => {
+        const current = accumulator.get(item.cabana_id) || [];
+        current.push({
+          inscripcionId: item.inscripcion_id,
+          miembroNombre: item.inscripciones_campamento?.miembros?.nombre || '',
+          miembroCedula: item.inscripciones_campamento?.miembros?.cedula || '',
+          estado: item.inscripciones_campamento?.estado || 'pendiente',
+        });
+        accumulator.set(item.cabana_id, current);
+        return accumulator;
+      }, new Map());
+    }
+
+    const nextCabanas = cabanas.map((item) => {
+      const miembrosAsignados = miembrosPorCabana.get(item.id) || [];
+      return {
+        ...item,
+        miembros: miembrosAsignados,
+        asignados: miembrosAsignados.length,
+      };
+    });
+
+    setCabanasState(nextCabanas);
+    return nextCabanas;
+  }
+
+  async function cargarGastos(campamentoId = selectedCampId) {
+    if (!campamentoId) {
+      setGastosState([]);
+      return [];
+    }
+
+    const { data, error } = await supabase
+      .from('gastos_campamento')
+      .select('*')
+      .eq('campamento_id', campamentoId)
+      .order('fecha', { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    const nextGastos = (data || []).map(mapGasto);
+    setGastosState(nextGastos);
+    return nextGastos;
+  }
+
+  async function cargarDetalleInscripcion(inscripcionId = selectedInsc?.id) {
+    if (!inscripcionId) {
+      setInscDetailState(null);
+      return null;
+    }
+
+    const { data, error } = await supabase
+      .from('inscripciones_campamento')
+      .select('*, miembros(nombre, cedula)')
+      .eq('id', inscripcionId)
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    const [{ data: pagosData }, { data: descuentosData }, { data: asignacionData }] = await Promise.all([
+      supabase.from('pagos_campamento').select('*').eq('inscripcion_id', inscripcionId).order('fecha_pago', { ascending: false }),
+      supabase.from('descuentos_campamento').select('*').eq('inscripcion_id', inscripcionId).order('created_at', { ascending: false }),
+      supabase.from('asignaciones_cabana').select('cabanas(nombre)').eq('inscripcion_id', inscripcionId).maybeSingle(),
+    ]);
+
+    const detail = {
+      ...mapInscripcion(data, asignacionData?.cabanas?.nombre || null),
+      pagos: (pagosData || []).map(mapPago),
+      descuentos: descuentosData || [],
+    };
+
+    setInscDetailState(detail);
+    return detail;
+  }
+
+  async function cargarReporte(campamentoId = selectedCampId) {
+    if (!campamentoId || tab !== 'reporte') {
+      setReporteState(null);
+      return null;
+    }
+
+    const [{ data: inscripcionesData, error: inscripcionesError }, { data: gastosData, error: gastosError }] = await Promise.all([
+      supabase.from('inscripciones_campamento').select('id, estado, saldo, total_pagado, total_descuentos').eq('campamento_id', campamentoId),
+      supabase.from('gastos_campamento').select('monto').eq('campamento_id', campamentoId),
+    ]);
+
+    if (inscripcionesError || gastosError) {
+      throw inscripcionesError || gastosError;
+    }
+
+    const inscripcionIds = (inscripcionesData || []).map((item) => item.id);
+    let pagosData = [];
+
+    if (inscripcionIds.length) {
+      const { data } = await supabase
+        .from('pagos_campamento')
+        .select('monto, metodo_pago, inscripcion_id')
+        .in('inscripcion_id', inscripcionIds);
+      pagosData = data || [];
+    }
+
+    const porMetodoPagoMap = pagosData.reduce((accumulator, item) => {
+      accumulator.set(item.metodo_pago, (accumulator.get(item.metodo_pago) || 0) + Number(item.monto || 0));
+      return accumulator;
+    }, new Map());
+
+    const nextReporte = {
+      totalInscritos: (inscripcionesData || []).length,
+      confirmados: (inscripcionesData || []).filter((item) => item.estado === 'confirmada').length,
+      pendientes: (inscripcionesData || []).filter((item) => item.estado === 'pendiente').length,
+      cancelados: (inscripcionesData || []).filter((item) => item.estado === 'cancelada').length,
+      totalIngresos: pagosData.reduce((sum, item) => sum + Number(item.monto || 0), 0),
+      totalDescuentos: (inscripcionesData || []).reduce((sum, item) => sum + Number(item.total_descuentos || 0), 0),
+      totalGastos: (gastosData || []).reduce((sum, item) => sum + Number(item.monto || 0), 0),
+      saldoPendiente: (inscripcionesData || []).reduce((sum, item) => sum + Number(item.saldo || 0), 0),
+      porMetodoPago: Array.from(porMetodoPagoMap.entries()).map(([metodoPago, total]) => ({ metodoPago, total })),
+    };
+
+    setReporteState(nextReporte);
+    return nextReporte;
+  }
+
+  async function recalcularInscripcion(inscripcionId) {
+    const [{ data: inscripcionData, error: inscripcionError }, { data: pagosData, error: pagosError }, { data: descuentosData, error: descuentosError }] = await Promise.all([
+      supabase.from('inscripciones_campamento').select('id, campamentos(precio_base)').eq('id', inscripcionId).single(),
+      supabase.from('pagos_campamento').select('monto').eq('inscripcion_id', inscripcionId),
+      supabase.from('descuentos_campamento').select('monto').eq('inscripcion_id', inscripcionId),
+    ]);
+
+    if (inscripcionError || pagosError || descuentosError) {
+      throw inscripcionError || pagosError || descuentosError;
+    }
+
+    const totalPagado = (pagosData || []).reduce((sum, item) => sum + Number(item.monto || 0), 0);
+    const totalDescuentos = (descuentosData || []).reduce((sum, item) => sum + Number(item.monto || 0), 0);
+    const precioBase = Number(inscripcionData?.campamentos?.precio_base || selectedCamp?.precioBase || 0);
+    const saldo = Math.max(0, precioBase - totalPagado - totalDescuentos);
+    const { error } = await supabase
+      .from('inscripciones_campamento')
+      .update({ total_pagado: totalPagado, total_descuentos: totalDescuentos, saldo })
+      .eq('id', inscripcionId);
+
+    if (error) {
+      throw error;
+    }
+  }
+
+  useEffect(() => {
+    Promise.all([cargarCampamentos(), cargarMiembros()]).catch((error) => {
+      toast({ type: 'error', title: 'No se pudieron cargar los campamentos', msg: getErrorMessage(error, 'Intenta nuevamente.') });
+    });
+  }, [toast]);
+
+  useEffect(() => {
+    if (!campamentos.length) {
+      setSelectedCampId(null);
+      return;
+    }
+
+    const exists = campamentos.some((camp) => camp.id === selectedCampId);
+    if (!exists) {
+      setSelectedCampId(campamentos[0].id);
+    }
+  }, [campamentos, selectedCampId]);
+
+  useEffect(() => {
+    Promise.all([
+      cargarInscripciones(selectedCampId),
+      cargarCabanas(selectedCampId),
+      cargarGastos(selectedCampId),
+    ]).catch((error) => {
+      if (selectedCampId) {
+        toast({ type: 'error', title: 'No se pudo cargar el detalle del campamento', msg: getErrorMessage(error, 'Intenta nuevamente.') });
+      }
+    });
+
+    if (!selectedCampId) {
+      setSelectedInsc(null);
+      setInscDetailState(null);
+    }
+  }, [selectedCampId, toast]);
+
+  useEffect(() => {
+    cargarDetalleInscripcion(selectedInsc?.id).catch((error) => {
+      if (selectedInsc?.id) {
+        toast({ type: 'error', title: 'No se pudo cargar la inscripción', msg: getErrorMessage(error, 'Intenta nuevamente.') });
+      }
+    });
+  }, [selectedInsc?.id, toast]);
+
+  useEffect(() => {
+    cargarReporte(selectedCampId).catch((error) => {
+      if (selectedCampId && tab === 'reporte') {
+        toast({ type: 'error', title: 'No se pudo cargar el reporte', msg: getErrorMessage(error, 'Intenta nuevamente.') });
+      }
+    });
+  }, [selectedCampId, tab, toast]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('camp-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'campamentos' }, () => {
+        cargarCampamentos().catch(() => {});
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'inscripciones_campamento' }, () => {
+        if (selectedCampId) cargarInscripciones(selectedCampId).catch(() => {});
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pagos_campamento' }, () => {
+        if (selectedInsc?.id) cargarDetalleInscripcion(selectedInsc.id).catch(() => {});
+      })
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, [selectedCampId, selectedInsc?.id]);
 
   const selectedCamp = useMemo(
     () => campamentos.find((c) => c.id === selectedCampId) || null,
@@ -294,21 +562,30 @@ export default function CampamentoScreen({ toast }) {
     setSavingCamp(true);
     try {
       const payload = {
-        ...campForm,
-        capacidadMaxima: campForm.capacidadMaxima ? Number(campForm.capacidadMaxima) : null,
-        precioBase: campForm.precioBase ? Number(campForm.precioBase) : 0,
+        nombre: campForm.nombre,
+        descripcion: campForm.descripcion || null,
+        fecha_inicio: campForm.fechaInicio,
+        fecha_fin: campForm.fechaFin,
+        capacidad_maxima: campForm.capacidadMaxima ? Number(campForm.capacidadMaxima) : null,
+        precio_base: Number(campForm.precioBase) || 0,
+        estado: campForm.estado,
       };
       if (editingCamp) {
-        await api.put(`/campamentos/${editingCamp.id}`, payload);
+        const { error } = await supabase.from('campamentos').update(payload).eq('id', editingCamp.id);
+        if (error) {
+          throw error;
+        }
         toast({ type: 'success', title: 'Campamento actualizado', msg: campForm.nombre });
       } else {
-        const res = await api.post('/campamentos', payload);
-        const created = res.data.data;
+        const { data: created, error } = await supabase.from('campamentos').insert(payload).select().single();
+        if (error) {
+          throw error;
+        }
         toast({ type: 'success', title: 'Campamento creado', msg: campForm.nombre });
         setSelectedCampId(created.id);
       }
       setCampModalOpen(false);
-      await refetchCampamentos();
+      await cargarCampamentos();
     } catch (error) {
       toast({ type: 'error', title: 'No se pudo guardar', msg: getErrorMessage(error, 'Intenta nuevamente.') });
     } finally {
@@ -317,22 +594,26 @@ export default function CampamentoScreen({ toast }) {
   }
 
   async function saveInscripcion() {
-    if (!selectedCampId) return;
+    if (!selectedCamp) return;
     setSavingInsc(true);
     try {
-      await api.post(`/campamentos/${selectedCampId}/inscripciones`, {
-        miembroId: Number(inscForm.miembroId),
-        fechaInscripcion: inscForm.fechaInscripcion,
+      const { error } = await supabase.from('inscripciones_campamento').insert({
+        campamento_id: selectedCamp.id,
+        miembro_id: Number(inscForm.miembroId),
+        fecha_inscripcion: inscForm.fechaInscripcion,
         estado: inscForm.estado,
+        saldo: Number(selectedCamp.precioBase) || 0,
+        registrado_por: user.id,
       });
+      if (error) {
+        throw error;
+      }
       toast({ type: 'success', title: 'Inscripción registrada' });
       setInscModalOpen(false);
       setInscForm(EMPTY_INSCRIPCION_FORM);
-      const updated = await refetchInscripciones();
-      setInscripcionesState(updated || []);
+      await cargarInscripciones(selectedCamp.id);
       if (tab === 'reporte') {
-        const reporteActualizado = await refetchReporte();
-        setReporteState(reporteActualizado);
+        await cargarReporte(selectedCamp.id);
       }
     } catch (error) {
       toast({ type: 'error', title: 'No se pudo inscribir', msg: getErrorMessage(error, 'Intenta nuevamente.') });
@@ -345,19 +626,26 @@ export default function CampamentoScreen({ toast }) {
     if (!selectedInsc?.id) return;
     setSavingPago(true);
     try {
-      await api.post(`/campamentos/inscripciones/${selectedInsc.id}/pagos`, {
-        monto: Number(pagoForm.monto),
-        fechaPago: pagoForm.fechaPago,
-        metodoPago: pagoForm.metodoPago,
-        referencia: pagoForm.referencia || undefined,
-        nota: pagoForm.nota || undefined,
+      const monto = Number(pagoForm.monto);
+      const { error } = await supabase.from('pagos_campamento').insert({
+        inscripcion_id: selectedInsc.id,
+        monto,
+        fecha_pago: pagoForm.fechaPago,
+        metodo_pago: pagoForm.metodoPago,
+        referencia: pagoForm.referencia || null,
+        nota: pagoForm.nota || null,
+        registrado_por: user.id,
       });
+      if (error) {
+        throw error;
+      }
+      await recalcularInscripcion(selectedInsc.id);
       toast({ type: 'success', title: 'Pago registrado', msg: formatMoney(pagoForm.monto) });
       setPagoForm(EMPTY_PAGO_FORM);
       const [detailData, inscripcionesData, reporteData] = await Promise.all([
-        refetchDetail(),
-        refetchInscripciones(),
-        tab === 'reporte' ? refetchReporte() : Promise.resolve(reporteState),
+        cargarDetalleInscripcion(selectedInsc.id),
+        cargarInscripciones(selectedCampId),
+        tab === 'reporte' ? cargarReporte(selectedCampId) : Promise.resolve(reporteState),
       ]);
       if (detailData) applyDetalleActualizado(detailData);
       setInscripcionesState(inscripcionesData || []);
@@ -373,16 +661,22 @@ export default function CampamentoScreen({ toast }) {
     if (!selectedInsc?.id) return;
     setSavingDescuento(true);
     try {
-      await api.post(`/campamentos/inscripciones/${selectedInsc.id}/descuentos`, {
+      const { error } = await supabase.from('descuentos_campamento').insert({
+        inscripcion_id: selectedInsc.id,
         motivo: descuentoForm.motivo,
         monto: Number(descuentoForm.monto),
+        registrado_por: user.id,
       });
+      if (error) {
+        throw error;
+      }
+      await recalcularInscripcion(selectedInsc.id);
       toast({ type: 'success', title: 'Descuento aplicado', msg: formatMoney(descuentoForm.monto) });
       setDescuentoForm(EMPTY_DESCUENTO_FORM);
       const [detailData, inscripcionesData, reporteData] = await Promise.all([
-        refetchDetail(),
-        refetchInscripciones(),
-        tab === 'reporte' ? refetchReporte() : Promise.resolve(reporteState),
+        cargarDetalleInscripcion(selectedInsc.id),
+        cargarInscripciones(selectedCampId),
+        tab === 'reporte' ? cargarReporte(selectedCampId) : Promise.resolve(reporteState),
       ]);
       if (detailData) applyDetalleActualizado(detailData);
       setInscripcionesState(inscripcionesData || []);
@@ -398,14 +692,18 @@ export default function CampamentoScreen({ toast }) {
     if (!selectedCampId) return;
     setSavingCabana(true);
     try {
-      await api.post(`/campamentos/${selectedCampId}/cabanas`, {
+      const { error } = await supabase.from('cabanas').insert({
+        campamento_id: selectedCampId,
         nombre: cabanaForm.nombre,
         capacidad: Number(cabanaForm.capacidad),
       });
+      if (error) {
+        throw error;
+      }
       toast({ type: 'success', title: 'Cabaña creada', msg: cabanaForm.nombre });
       setCabanaModalOpen(false);
       setCabanaForm(EMPTY_CABANA_FORM);
-      const updated = await refetchCabanas();
+      const updated = await cargarCabanas(selectedCampId);
       setCabanasState(updated || []);
     } catch (error) {
       toast({ type: 'error', title: 'No se pudo crear la cabaña', msg: getErrorMessage(error, 'Intenta nuevamente.') });
@@ -418,17 +716,22 @@ export default function CampamentoScreen({ toast }) {
     if (!selectedCampId) return;
     setSavingGasto(true);
     try {
-      await api.post(`/campamentos/${selectedCampId}/gastos`, {
-        concepto: gastoForm.concepto,
+      const { error } = await supabase.from('gastos_campamento').insert({
+        campamento_id: selectedCampId,
+        descripcion: gastoForm.concepto,
         monto: Number(gastoForm.monto),
-        fechaGasto: gastoForm.fechaGasto,
-        nota: gastoForm.nota || undefined,
+        fecha: gastoForm.fechaGasto,
+        categoria: gastoForm.nota || null,
+        registrado_por: user.id,
       });
+      if (error) {
+        throw error;
+      }
       toast({ type: 'success', title: 'Gasto registrado', msg: gastoForm.concepto });
       setGastoForm(EMPTY_GASTO_FORM);
       const [gastosData, reporteData] = await Promise.all([
-        refetchGastos(),
-        refetchReporte().catch(() => reporteState),
+        cargarGastos(selectedCampId),
+        cargarReporte(selectedCampId).catch(() => reporteState),
       ]);
       setGastosState(gastosData || []);
       setReporteState(reporteData || null);
@@ -443,17 +746,21 @@ export default function CampamentoScreen({ toast }) {
     if (!asignarInscId || !asignarCabanaId) return;
     setSavingAsignacion(true);
     try {
-      await api.post(`/campamentos/cabanas/${asignarCabanaId}/asignar`, {
-        inscripcionId: Number(asignarInscId),
+      const { error } = await supabase.from('asignaciones_cabana').insert({
+        inscripcion_id: Number(asignarInscId),
+        cabana_id: Number(asignarCabanaId),
       });
+      if (error) {
+        throw error;
+      }
       toast({ type: 'success', title: 'Cabaña asignada' });
       setAsignarModalOpen(false);
       setAsignarCabanaId('');
       setAsignarInscId('');
       const [cabanasData, inscripcionesData, detailData] = await Promise.all([
-        refetchCabanas(),
-        refetchInscripciones(),
-        selectedInsc?.id ? refetchDetail() : Promise.resolve(inscDetailState),
+        cargarCabanas(selectedCampId),
+        cargarInscripciones(selectedCampId),
+        selectedInsc?.id ? cargarDetalleInscripcion(selectedInsc.id) : Promise.resolve(inscDetailState),
       ]);
       setCabanasState(cabanasData || []);
       setInscripcionesState(inscripcionesData || []);
@@ -468,11 +775,14 @@ export default function CampamentoScreen({ toast }) {
   async function changeInscripcionEstado(inscripcionId, estado) {
     setUpdatingEstadoId(inscripcionId);
     try {
-      const res = await api.patch(`/campamentos/inscripciones/${inscripcionId}/estado`, { estado });
-      const updated = res.data.data;
+      const { error } = await supabase.from('inscripciones_campamento').update({ estado }).eq('id', inscripcionId);
+      if (error) {
+        throw error;
+      }
+      const updated = { id: inscripcionId, estado };
       syncInscripcionState(updated);
       if (tab === 'reporte') {
-        const reporteActualizado = await refetchReporte();
+        const reporteActualizado = await cargarReporte(selectedCampId);
         setReporteState(reporteActualizado);
       }
       toast({ type: 'success', title: 'Estado actualizado', msg: ESTADO_INSC_LABEL[estado] || estado });
@@ -490,13 +800,18 @@ export default function CampamentoScreen({ toast }) {
 
     setDeletingPagoId(pagoId);
     try {
-      await api.delete(`/campamentos/pagos/${pagoId}`);
-      const updatedDetail = await refetchDetail();
+      const { error } = await supabase.from('pagos_campamento').delete().eq('id', pagoId);
+      if (error) {
+        throw error;
+      }
+      await recalcularInscripcion(selectedInsc.id);
+      const updatedDetail = await cargarDetalleInscripcion(selectedInsc.id);
       if (updatedDetail) applyDetalleActualizado(updatedDetail);
       if (tab === 'reporte') {
-        const reporteActualizado = await refetchReporte();
+        const reporteActualizado = await cargarReporte(selectedCampId);
         setReporteState(reporteActualizado);
       }
+      await cargarInscripciones(selectedCampId);
       toast({ type: 'success', title: 'Pago eliminado' });
     } catch (error) {
       toast({ type: 'error', title: 'No se pudo eliminar el pago', msg: getErrorMessage(error, 'Intenta nuevamente.') });
@@ -512,13 +827,18 @@ export default function CampamentoScreen({ toast }) {
 
     setDeletingDescuentoId(descuentoId);
     try {
-      await api.delete(`/campamentos/descuentos/${descuentoId}`);
-      const updatedDetail = await refetchDetail();
+      const { error } = await supabase.from('descuentos_campamento').delete().eq('id', descuentoId);
+      if (error) {
+        throw error;
+      }
+      await recalcularInscripcion(selectedInsc.id);
+      const updatedDetail = await cargarDetalleInscripcion(selectedInsc.id);
       if (updatedDetail) applyDetalleActualizado(updatedDetail);
       if (tab === 'reporte') {
-        const reporteActualizado = await refetchReporte();
+        const reporteActualizado = await cargarReporte(selectedCampId);
         setReporteState(reporteActualizado);
       }
+      await cargarInscripciones(selectedCampId);
       toast({ type: 'success', title: 'Descuento eliminado' });
     } catch (error) {
       toast({ type: 'error', title: 'No se pudo eliminar el descuento', msg: getErrorMessage(error, 'Intenta nuevamente.') });
@@ -533,10 +853,13 @@ export default function CampamentoScreen({ toast }) {
 
     setDeletingGastoId(gastoId);
     try {
-      await api.delete(`/campamentos/gastos/${gastoId}`);
+      const { error } = await supabase.from('gastos_campamento').delete().eq('id', gastoId);
+      if (error) {
+        throw error;
+      }
       const [gastosData, reporteData] = await Promise.all([
-        refetchGastos(),
-        refetchReporte().catch(() => reporteState),
+        cargarGastos(selectedCampId),
+        cargarReporte(selectedCampId).catch(() => reporteState),
       ]);
       setGastosState(gastosData || []);
       setReporteState(reporteData || null);
@@ -554,24 +877,15 @@ export default function CampamentoScreen({ toast }) {
 
     setDesasignandoInscId(inscripcionId);
     try {
-      await api.delete(`/campamentos/asignaciones/${inscripcionId}`);
-
-      setCabanasState((current) => current.map((cabana) => (
-        cabana.id === cabanaId
-          ? {
-            ...cabana,
-            asignados: Math.max(0, Number(cabana.asignados || 0) - 1),
-            miembros: (cabana.miembros || []).filter((miembro) => miembro.inscripcionId !== inscripcionId),
-          }
-          : cabana
-      )));
-
-      syncInscripcionState({ id: inscripcionId, cabanaAsignada: null });
-
-      if (selectedInsc?.id === inscripcionId) {
-        setInscDetailState((current) => (current ? { ...current, cabanaAsignada: null } : current));
+      const { error } = await supabase.from('asignaciones_cabana').delete().eq('inscripcion_id', inscripcionId);
+      if (error) {
+        throw error;
       }
-
+      await Promise.all([
+        cargarCabanas(selectedCampId),
+        cargarInscripciones(selectedCampId),
+        selectedInsc?.id === inscripcionId ? cargarDetalleInscripcion(inscripcionId) : Promise.resolve(null),
+      ]);
       toast({ type: 'success', title: 'Miembro desasignado' });
     } catch (error) {
       toast({ type: 'error', title: 'No se pudo desasignar', msg: getErrorMessage(error, 'Intenta nuevamente.') });
@@ -588,12 +902,16 @@ export default function CampamentoScreen({ toast }) {
     if (!confirmed) return;
 
     try {
-      await api.delete(`/campamentos/${selectedCamp.id}`);
+      const { error } = await supabase.from('campamentos').delete().eq('id', selectedCamp.id);
+      if (error) {
+        throw error;
+      }
       toast({ type: 'success', title: 'Campamento eliminado', msg: selectedCamp.nombre });
       setSelectedCampId(null);
       setSelectedInsc(null);
       setDetailModalOpen(false);
-      await Promise.all([refetchCampamentos(), refetchInscripciones(), refetchCabanas()]);
+      setReporteState(null);
+      await Promise.all([cargarCampamentos(), cargarInscripciones(null), cargarCabanas(null), cargarGastos(null)]);
     } catch (error) {
       toast({ type: 'error', title: 'No se pudo eliminar', msg: getErrorMessage(error, 'Intenta nuevamente.') });
     }
