@@ -5,19 +5,19 @@ const NAV_SECTIONS = [
   {
     label: 'Principal',
     items: [
-      { id: 'asistencia',   label: 'Asistencia' },
-      { id: 'miembros',     label: 'Miembros' },
-      { id: 'celulas',      label: 'Células' },
-      { id: 'agenda',       label: 'Agenda de cultos' },
-      { id: 'campamentos',  label: 'Campamentos' },
+      { id: 'asistencia',   label: 'Asistencia',      icon: 'clipboard-check' },
+      { id: 'miembros',     label: 'Miembros',         icon: 'users' },
+      { id: 'celulas',      label: 'Células',          icon: 'share-2' },
+      { id: 'agenda',       label: 'Agenda de cultos', icon: 'calendar-days' },
+      { id: 'campamentos',  label: 'Eventos',          icon: 'tent' },
     ],
   },
   {
     label: 'Sistema',
     items: [
-      { id: 'herramientas', label: 'Herramientas' },
-      { id: 'reportes',     label: 'Reportes' },
-      { id: 'ajustes',      label: 'Ajustes' },
+      { id: 'herramientas', label: 'Herramientas', icon: 'wrench' },
+      { id: 'reportes',     label: 'Reportes',     icon: 'bar-chart-2' },
+      { id: 'ajustes',      label: 'Ajustes',      icon: 'settings' },
     ],
   },
 ];
@@ -52,7 +52,7 @@ export default function AppSidebar({ current, onNav, user }) {
                     className={`sb-item ${isActive ? 'active' : ''}`}
                     onClick={() => handleNav(it.id)}
                   >
-                    <span className="sb-dot" />
+                    <i data-lucide={it.icon} style={{ width: 16, height: 16, flexShrink: 0 }} />
                     {it.label}
                   </div>
                   {isAjustes && settingsOpen && (
@@ -61,14 +61,14 @@ export default function AppSidebar({ current, onNav, user }) {
                         className={`sb-item ${current === 'ajustes' ? 'active' : ''}`}
                         onClick={() => onNav('ajustes')}
                       >
-                        <span className="sb-dot" />
+                        <i data-lucide="sliders-horizontal" style={{ width: 14, height: 14, flexShrink: 0 }} />
                         General
                       </div>
                       <div
                         className={`sb-item ${current === 'ajustes-tipos' ? 'active' : ''}`}
                         onClick={() => onNav('ajustes-tipos')}
                       >
-                        <span className="sb-dot" />
+                        <i data-lucide="tag" style={{ width: 14, height: 14, flexShrink: 0 }} />
                         Tipos de miembros
                       </div>
                     </div>

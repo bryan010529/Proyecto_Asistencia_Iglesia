@@ -69,7 +69,7 @@ export default function App() {
       el: <SettingsScreen toast={push} initialSection="agenda" sectionsOverride={['agenda']} />,
     },
     campamentos: {
-      title: 'Campamentos',
+      title: 'Eventos',
       crumbs: 'Inscripciones, pagos y cabañas',
       el: <CampamentoScreen toast={push} />,
     },

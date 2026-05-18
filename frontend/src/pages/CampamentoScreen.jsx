@@ -507,6 +507,12 @@ export default function CampamentoScreen({ toast }) {
     [inscripcionesState],
   );
 
+  const sinInscribir = useMemo(() => {
+    if (!selectedCampId) return null;
+    const inscritosIds = new Set(inscripcionesState.filter((i) => i.estado !== 'cancelada').map((i) => i.miembroId));
+    return members.filter((m) => !inscritosIds.has(m.id)).length;
+  }, [selectedCampId, inscripcionesState, members]);
+
   function syncInscripcionState(updated) {
     if (!updated?.id) return;
 
@@ -1011,12 +1017,17 @@ export default function CampamentoScreen({ toast }) {
           <div className="value" style={{ fontSize: 20 }}>{formatMoney(balanceNeto)}</div>
           <div className="muted">Ingresos menos gastos</div>
         </div>
+        <div className="card kpi">
+          <div className="label">Sin inscribir</div>
+          <div className="value">{sinInscribir ?? '—'}</div>
+          <div className="muted">Miembros activos no inscritos</div>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '300px minmax(0, 1fr)', gap: 16 }}>
         <div className="card" style={{ padding: 16 }}>
           <div className="row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
-            <div className="card-title" style={{ margin: 0 }}>Campamentos</div>
+            <div className="card-title" style={{ margin: 0 }}>Eventos</div>
             <Badge variant="neutral">{campamentos.length}</Badge>
           </div>
           <div className="stack" style={{ gap: 8 }}>
@@ -1090,6 +1101,7 @@ export default function CampamentoScreen({ toast }) {
                   </div>
                   {!inscripcionesState.length && <p className="muted">Todavía no hay inscripciones para este campamento.</p>}
                   {inscripcionesState.length > 0 && (
+                    <div style={{ overflowX: 'auto' }}>
                     <table className="tbl">
                       <thead>
                         <tr>
@@ -1139,6 +1151,7 @@ export default function CampamentoScreen({ toast }) {
                         ))}
                       </tbody>
                     </table>
+                    </div>
                   )}
                 </div>
               )}
