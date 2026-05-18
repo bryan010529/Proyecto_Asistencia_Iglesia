@@ -1,67 +1,75 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { setUnauthorizedHandler } from '../api/axiosConfig';
+import { supabase } from '../lib/supabase';
 
 const AuthContext = createContext(null);
 
-function normalizeUser(userData = {}) {
-  const id = userData.id;
-  const nombre = userData.nombre || userData.name || '';
-  const rol = userData.rol || userData.role || '';
-
-  return {
-    id,
-    nombre,
-    rol,
-    name: nombre,
-    role: rol,
-    correo: userData.correo || '',
-  };
-}
-
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => {
-    const stored = localStorage.getItem('user');
-    return stored ? normalizeUser(JSON.parse(stored)) : null;
-  });
+  const [user, setUser] = useState(null);
+  const [perfil, setPerfil] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [sessionExpired, setSessionExpired] = useState(false);
 
-  function login(userData, token) {
-    const normalizedUser = normalizeUser(userData);
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(normalizedUser));
-    setSessionExpired(false);
-    setUser(normalizedUser);
+  async function cargarPerfil(authUser) {
+    if (!authUser) { setPerfil(null); return; }
+    const { data } = await supabase
+      .from('perfiles')
+      .select('*')
+      .eq('id', authUser.id)
+      .single();
+    setPerfil(data);
   }
 
-  function logout(options = {}) {
-    const { expired = false } = options;
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setSessionExpired(expired);
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      cargarPerfil(session?.user ?? null).finally(() => setLoading(false));
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const nextUser = session?.user ?? null;
+      setUser(nextUser);
+      cargarPerfil(nextUser);
+      if (!session) setSessionExpired(true);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  async function login(correo, password) {
+    const { error } = await supabase.auth.signInWithPassword({ email: correo, password });
+    if (error) throw error;
+    setSessionExpired(false);
+  }
+
+  async function logout() {
+    await supabase.auth.signOut();
     setUser(null);
+    setPerfil(null);
   }
 
   function clearSessionExpired() {
     setSessionExpired(false);
   }
 
-  useEffect(() => {
-    setUnauthorizedHandler(() => {
-      logout({ expired: true });
-    });
-
-    return () => {
-      setUnauthorizedHandler(null);
+  const userNormalizado = useMemo(() => {
+    if (!user || !perfil) return null;
+    return {
+      id: user.id,
+      nombre: perfil.nombre,
+      rol: perfil.rol,
+      correo: user.email,
     };
-  }, []);
+  }, [user, perfil]);
 
   const value = useMemo(() => ({
-    user,
+    user: userNormalizado,
     login,
     logout,
     sessionExpired,
     clearSessionExpired,
-  }), [sessionExpired, user]);
+  }), [userNormalizado, sessionExpired]);
+
+  if (loading) return null;
 
   return (
     <AuthContext.Provider value={value}>

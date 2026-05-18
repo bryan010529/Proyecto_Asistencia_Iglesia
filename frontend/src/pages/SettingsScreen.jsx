@@ -1,12 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import api from '../api/axiosConfig';
+import { supabase } from '../lib/supabase';
 import { Button, Input, Modal } from '../components/Primitives';
 import { useAuth } from '../context/AuthContext';
-import { useApi } from '../hooks/useApi';
-
-function getErrorMessage(error, fallback) {
-  return error?.response?.data?.error || fallback;
-}
 
 function formatDate(value) {
   if (!value) {
@@ -124,50 +119,15 @@ export default function SettingsScreen({
   const [agendaForm, setAgendaForm] = useState(EMPTY_AGENDA_FORM);
   const [savingAgenda, setSavingAgenda] = useState(false);
   const [cancellingAgenda, setCancellingAgenda] = useState(false);
-  const isAdmin = user?.role === 'admin';
-
-  const {
-    data: usuarios = [],
-    loading: loadingUsuarios,
-    refetch: refetchUsuarios,
-  } = useApi(
-    async () => {
-      if (!isAdmin) {
-        return [];
-      }
-
-      const response = await api.get('/usuarios');
-      return response.data.data || [];
-    },
-    { deps: [isAdmin], initialData: [] }
-  );
-
-  const {
-    data: memberTypes = [],
-    loading: loadingMemberTypes,
-    refetch: refetchMemberTypes,
-  } = useApi(async () => {
-    const response = await api.get('/tipos-miembro');
-    return response.data.data || [];
-  }, { initialData: [] });
-
-  const {
-    data: agendaDays = [],
-    loading: loadingAgenda,
-    refetch: refetchAgenda,
-  } = useApi(async () => {
-    const response = await api.get('/agenda-cultos', { params: { mes: agendaMonth } });
-    return response.data.data || [];
-  }, { deps: [agendaMonth], initialData: [] });
-
-  const {
-    data: agendaHistory = [],
-    loading: loadingAgendaHistory,
-    refetch: refetchAgendaHistory,
-  } = useApi(async () => {
-    const response = await api.get('/agenda-cultos/historial', { params: { mes: agendaMonth } });
-    return response.data.data || [];
-  }, { deps: [agendaMonth], initialData: [] });
+  const isAdmin = user?.rol === 'admin';
+  const [usuarios, setUsuarios] = useState([]);
+  const [loadingUsuarios, setLoadingUsuarios] = useState(false);
+  const [memberTypes, setMemberTypes] = useState([]);
+  const [loadingMemberTypes, setLoadingMemberTypes] = useState(false);
+  const [agendaDays, setAgendaDays] = useState([]);
+  const [loadingAgenda, setLoadingAgenda] = useState(false);
+  const [agendaHistory, setAgendaHistory] = useState([]);
+  const [loadingAgendaHistory, setLoadingAgendaHistory] = useState(false);
 
   const calendarDays = useMemo(
     () => buildCalendarDays(agendaMonth, agendaDays),
@@ -180,6 +140,79 @@ export default function SettingsScreen({
       : (sectionsOverride[0] || 'seguridad');
     setSection(nextSection);
   }, [initialSection, sectionsKey]);
+
+  async function cargarUsuarios() {
+    if (!isAdmin) {
+      setUsuarios([]);
+      return;
+    }
+    setLoadingUsuarios(true);
+    const { data } = await supabase.from('perfiles').select('*').order('nombre');
+    setUsuarios(data || []);
+    setLoadingUsuarios(false);
+  }
+
+  async function cargarTipos() {
+    setLoadingMemberTypes(true);
+    const { data } = await supabase.from('tipos_miembro').select('*').order('nombre');
+    setMemberTypes(data || []);
+    setLoadingMemberTypes(false);
+  }
+
+  async function cargarAgenda() {
+    setLoadingAgenda(true);
+    setLoadingAgendaHistory(true);
+    const { data } = await supabase
+      .from('agenda_cultos')
+      .select('*')
+      .gte('fecha', `${agendaMonth}-01`)
+      .lte('fecha', `${agendaMonth}-31`)
+      .order('fecha');
+    const agenda = data || [];
+    setAgendaDays(agenda);
+    setAgendaHistory(agenda.map((item) => ({
+      id: item.id,
+      fecha: item.fecha,
+      accion: 'programado',
+      tipoAnterior: null,
+      tipoNuevo: item.tipo,
+      razon: item.descripcion || null,
+      createdAt: item.created_at,
+    })));
+    setLoadingAgenda(false);
+    setLoadingAgendaHistory(false);
+  }
+
+  useEffect(() => {
+    cargarUsuarios();
+  }, [isAdmin]);
+
+  useEffect(() => {
+    cargarTipos();
+    const channel = supabase
+      .channel('tipos-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tipos_miembro' }, cargarTipos)
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, []);
+
+  useEffect(() => {
+    cargarAgenda();
+    const channel = supabase
+      .channel('agenda-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'agenda_cultos' }, cargarAgenda)
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [agendaMonth]);
+
+  useEffect(() => {
+    if (!isAdmin) return undefined;
+    const channel = supabase
+      .channel('usuarios-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'perfiles' }, cargarUsuarios)
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [isAdmin]);
 
   useEffect(() => {
     if (editingUser) {
@@ -230,7 +263,8 @@ export default function SettingsScreen({
     setSavingPassword(true);
 
     try {
-      await api.put('/auth/password', passwordForm);
+      const { error } = await supabase.auth.updateUser({ password: passwordForm.newPassword });
+      if (error) throw error;
       setPasswordForm(EMPTY_PASSWORD_FORM);
       toast({
         type: 'success',
@@ -241,7 +275,7 @@ export default function SettingsScreen({
       toast({
         type: 'error',
         title: 'No se pudo cambiar la contraseña',
-        msg: getErrorMessage(error, 'Verifica tus credenciales y vuelve a intentar.'),
+        msg: error.message || 'Verifica tus credenciales y vuelve a intentar.',
       });
     } finally {
       setSavingPassword(false);
@@ -251,25 +285,22 @@ export default function SettingsScreen({
   async function handleUserSubmit() {
     try {
       if (editingUser) {
-        const payload = {
+        const { error } = await supabase.from('perfiles').update({
           nombre: userForm.nombre,
-          correo: userForm.correo,
           rol: userForm.rol,
           activo: userForm.activo,
-        };
-
-        if (userForm.password) {
-          payload.password = userForm.password;
-        }
-
-        await api.put(`/usuarios/${editingUser.id}`, payload);
+        }).eq('id', editingUser.id);
+        if (error) throw error;
         toast({
           type: 'success',
           title: 'Usuario actualizado',
           msg: userForm.nombre,
         });
       } else {
-        await api.post('/usuarios', userForm);
+        const { data, error } = await supabase.auth.signUp({ email: userForm.correo, password: userForm.password });
+        if (error) throw error;
+        const { error: profileError } = await supabase.from('perfiles').insert({ id: data.user.id, nombre: userForm.nombre, rol: userForm.rol });
+        if (profileError) throw profileError;
         toast({
           type: 'success',
           title: 'Usuario creado',
@@ -279,12 +310,12 @@ export default function SettingsScreen({
 
       setUserModalOpen(false);
       setEditingUser(null);
-      await refetchUsuarios();
+      await cargarUsuarios();
     } catch (error) {
       toast({
         type: 'error',
         title: 'No se pudo guardar el usuario',
-        msg: getErrorMessage(error, 'Revisa los datos e intenta nuevamente.'),
+        msg: error.message || 'Revisa los datos e intenta nuevamente.',
       });
     }
   }
@@ -292,14 +323,16 @@ export default function SettingsScreen({
   async function handleTypeSubmit() {
     try {
       if (editingType) {
-        await api.put(`/tipos-miembro/${editingType.id}`, typeForm);
+        const { error } = await supabase.from('tipos_miembro').update({ nombre: typeForm.nombre, activo: typeForm.activo }).eq('id', editingType.id);
+        if (error) throw error;
         toast({
           type: 'success',
           title: 'Tipo actualizado',
           msg: typeForm.nombre,
         });
       } else {
-        await api.post('/tipos-miembro', typeForm);
+        const { error } = await supabase.from('tipos_miembro').insert({ nombre: typeForm.nombre });
+        if (error) throw error;
         toast({
           type: 'success',
           title: 'Tipo creado',
@@ -309,12 +342,12 @@ export default function SettingsScreen({
 
       setTypeModalOpen(false);
       setEditingType(null);
-      await refetchMemberTypes();
+      await cargarTipos();
     } catch (error) {
       toast({
         type: 'error',
         title: 'No se pudo guardar el tipo',
-        msg: getErrorMessage(error, 'Revisa los datos e intenta nuevamente.'),
+        msg: error.message || 'Revisa los datos e intenta nuevamente.',
       });
     }
   }
@@ -323,7 +356,20 @@ export default function SettingsScreen({
     setSavingAgenda(true);
 
     try {
-      await api.post('/agenda-cultos', agendaForm);
+      let error;
+      if (selectedDay?.agenda?.id) {
+        ({ error } = await supabase.from('agenda_cultos').update({
+          tipo: agendaForm.tipo,
+          descripcion: agendaForm.descripcion || null,
+        }).eq('id', selectedDay.agenda.id));
+      } else {
+        ({ error } = await supabase.from('agenda_cultos').insert({
+          fecha: agendaForm.fecha,
+          tipo: agendaForm.tipo,
+          descripcion: agendaForm.descripcion || null,
+        }));
+      }
+      if (error) throw error;
       toast({
         type: 'success',
         title: 'Agenda actualizada',
@@ -331,12 +377,12 @@ export default function SettingsScreen({
       });
       setAgendaModalOpen(false);
       setSelectedDay(null);
-      await Promise.all([refetchAgenda(), refetchAgendaHistory()]);
+      await cargarAgenda();
     } catch (error) {
       toast({
         type: 'error',
         title: 'No se pudo guardar la agenda',
-        msg: getErrorMessage(error, 'Intenta nuevamente.'),
+        msg: error.message || 'Intenta nuevamente.',
       });
     } finally {
       setSavingAgenda(false);
@@ -344,16 +390,15 @@ export default function SettingsScreen({
   }
 
   async function handleAgendaCancel() {
-    if (!selectedDay?.agenda?.tieneActividad) {
+    if (!selectedDay?.agenda?.id) {
       return;
     }
 
     setCancellingAgenda(true);
 
     try {
-      await api.delete(`/agenda-cultos/${selectedDay.fecha}`, {
-        data: { razon: agendaForm.razon || undefined },
-      });
+      const { error } = await supabase.from('agenda_cultos').delete().eq('id', selectedDay.agenda.id);
+      if (error) throw error;
       toast({
         type: 'success',
         title: 'Actividad removida',
@@ -361,12 +406,12 @@ export default function SettingsScreen({
       });
       setAgendaModalOpen(false);
       setSelectedDay(null);
-      await Promise.all([refetchAgenda(), refetchAgendaHistory()]);
+      await cargarAgenda();
     } catch (error) {
       toast({
         type: 'error',
         title: 'No se pudo cancelar la actividad',
-        msg: getErrorMessage(error, 'Intenta nuevamente.'),
+        msg: error.message || 'Intenta nuevamente.',
       });
     } finally {
       setCancellingAgenda(false);
@@ -468,7 +513,7 @@ export default function SettingsScreen({
                 {usuarios.map((usuario) => (
                   <tr key={usuario.id}>
                     <td>{usuario.nombre}</td>
-                    <td>{usuario.correo}</td>
+                    <td>{usuario.correo || '—'}</td>
                     <td>{usuario.rol}</td>
                     <td>{usuario.activo ? 'Activo' : 'Inactivo'}</td>
                     <td>
@@ -533,7 +578,7 @@ export default function SettingsScreen({
                     <td>{item.nombre}</td>
                     <td>{item.descripcion || '—'}</td>
                     <td>{item.activo ? 'Activo' : 'Inactivo'}</td>
-                    <td>{formatDate(item.createdAt)}</td>
+                    <td>{formatDate(item.created_at)}</td>
                     <td>
                       <div className="row" style={{ justifyContent: 'flex-end' }}>
                         <button
@@ -609,8 +654,8 @@ export default function SettingsScreen({
                       return <div key={`blank-${index}`} />;
                     }
 
-                    const stateLabel = item.agenda?.estado || 'libre';
-                    const activity = item.agenda?.actividad;
+                    const stateLabel = item.agenda ? 'programado' : 'libre';
+                    const activity = item.agenda;
 
                     return (
                       <button
@@ -633,10 +678,10 @@ export default function SettingsScreen({
                           <span className="muted" style={{ fontSize: 11 }}>{stateLabel}</span>
                         </div>
                         <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>
-                          {activity?.tipo || item.agenda?.base?.tipo || 'Disponible'}
+                          {activity?.tipo || 'Disponible'}
                         </div>
                         <div className="muted" style={{ fontSize: 12 }}>
-                          {activity?.descripcion || item.agenda?.base?.descripcion || 'Sin actividad programada'}
+                          {activity?.descripcion || 'Sin actividad programada'}
                         </div>
                       </button>
                     );
@@ -832,7 +877,7 @@ export default function SettingsScreen({
             >
               Cerrar
             </Button>
-            {selectedDay?.agenda?.tieneActividad && (
+            {selectedDay?.agenda?.id && (
               <Button variant="danger" onClick={handleAgendaCancel} disabled={cancellingAgenda}>
                 {cancellingAgenda ? 'Quitando...' : 'Quitar actividad'}
               </Button>
