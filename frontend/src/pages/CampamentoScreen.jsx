@@ -1448,6 +1448,7 @@ export default function CampamentoScreen({ toast }) {
                             <th>Cant.</th>
                             <th>Total esperado</th>
                             <th>Total pagado</th>
+                            <th>Balance pendiente</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1457,6 +1458,7 @@ export default function CampamentoScreen({ toast }) {
                               <td className="tnum">{item.cantidad}</td>
                               <td className="tnum">{formatMoney(item.totalEsperado)}</td>
                               <td className="tnum">{formatMoney(item.totalPagado)}</td>
+                              <td className="tnum">{formatMoney(item.totalEsperado - item.totalPagado)}</td>
                             </tr>
                           ))}
                         </tbody>
