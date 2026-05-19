@@ -142,6 +142,7 @@ export default function CampamentoScreen({ toast }) {
 
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [selectedInsc, setSelectedInsc] = useState(null);
+  const [deletingInscId, setDeletingInscId] = useState(null);
   const [inscripcionesState, setInscripcionesState] = useState([]);
   const [cabanasState, setCabanasState] = useState([]);
   const [gastosState, setGastosState] = useState([]);
@@ -342,7 +343,7 @@ export default function CampamentoScreen({ toast }) {
     }
 
     const [{ data: inscripcionesData, error: inscripcionesError }, { data: gastosData, error: gastosError }] = await Promise.all([
-      supabase.from('inscripciones_campamento').select('id, estado, saldo, total_pagado, total_descuentos').eq('campamento_id', campamentoId),
+      supabase.from('inscripciones_campamento').select('id, estado, saldo, total_pagado, total_descuentos, miembros(tipo_miembro_id, tipos_miembro(nombre))').eq('campamento_id', campamentoId),
       supabase.from('gastos_campamento').select('monto').eq('campamento_id', campamentoId),
     ]);
 
@@ -376,6 +377,14 @@ export default function CampamentoScreen({ toast }) {
       totalGastos: (gastosData || []).reduce((sum, item) => sum + Number(item.monto || 0), 0),
       saldoPendiente: (inscripcionesData || []).reduce((sum, item) => sum + Number(item.saldo || 0), 0),
       porMetodoPago: Array.from(porMetodoPagoMap.entries()).map(([metodoPago, total]) => ({ metodoPago, total })),
+      porTipoMiembro: (() => {
+        const map = new Map();
+        (inscripcionesData || []).filter((i) => i.estado !== 'cancelada').forEach((i) => {
+          const tipo = i.miembros?.tipos_miembro?.nombre || 'Sin tipo';
+          map.set(tipo, (map.get(tipo) || 0) + 1);
+        });
+        return Array.from(map.entries()).sort((a, b) => b[1] - a[1]).map(([tipo, cantidad]) => ({ tipo, cantidad }));
+      })(),
     };
 
     setReporteState(nextReporte);
@@ -908,6 +917,29 @@ export default function CampamentoScreen({ toast }) {
     }
   }
 
+  async function deleteInscripcion() {
+    if (!selectedInsc?.id) return;
+    const confirmed = window.confirm(`¿Eliminar la inscripción de ${selectedInsc.miembroNombre}? Se borrarán también sus pagos y descuentos.`);
+    if (!confirmed) return;
+    setDeletingInscId(selectedInsc.id);
+    try {
+      await supabase.from('asignaciones_cabana').delete().eq('inscripcion_id', selectedInsc.id);
+      await supabase.from('pagos_campamento').delete().eq('inscripcion_id', selectedInsc.id);
+      await supabase.from('descuentos_campamento').delete().eq('inscripcion_id', selectedInsc.id);
+      const { error } = await supabase.from('inscripciones_campamento').delete().eq('id', selectedInsc.id);
+      if (error) throw error;
+      toast({ type: 'success', title: 'Inscripción eliminada', msg: selectedInsc.miembroNombre });
+      setDetailModalOpen(false);
+      setSelectedInsc(null);
+      await cargarInscripciones(selectedCampId);
+      if (tab === 'reporte') await cargarReporte(selectedCampId);
+    } catch (error) {
+      toast({ type: 'error', title: 'No se pudo eliminar', msg: getErrorMessage(error, 'Intenta nuevamente.') });
+    } finally {
+      setDeletingInscId(null);
+    }
+  }
+
   async function deleteGasto(gastoId) {
     const confirmed = window.confirm('Se eliminará este gasto.');
     if (!confirmed) return;
@@ -1309,6 +1341,31 @@ export default function CampamentoScreen({ toast }) {
                   </div>
 
                   <div className="card" style={{ padding: 16 }}>
+                    <div className="card-title" style={{ marginBottom: 12 }}>Clasificación por tipo de miembro</div>
+                    {!(reporteState?.porTipoMiembro || []).length && (
+                      <p className="muted">No hay inscripciones activas para clasificar.</p>
+                    )}
+                    {!!(reporteState?.porTipoMiembro || []).length && (
+                      <table className="tbl">
+                        <thead>
+                          <tr>
+                            <th>Tipo de miembro</th>
+                            <th>Cantidad</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {reporteState.porTipoMiembro.map((item) => (
+                            <tr key={item.tipo}>
+                              <td>{item.tipo}</td>
+                              <td className="tnum">{item.cantidad}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+
+                  <div className="card" style={{ padding: 16 }}>
                     <div className="row" style={{ justifyContent: 'space-between', marginBottom: 12, gap: 12, flexWrap: 'wrap' }}>
                       <div className="card-title" style={{ margin: 0 }}>Gastos del campamento</div>
                       <Badge variant="neutral">{gastosState.length}</Badge>
@@ -1605,7 +1662,14 @@ export default function CampamentoScreen({ toast }) {
         open={detailModalOpen}
         title={`Detalle · ${selectedInsc?.miembroNombre || 'Inscripción'}`}
         onClose={() => { setDetailModalOpen(false); setSelectedInsc(null); }}
-        footer={<Button variant="primary" onClick={() => { setDetailModalOpen(false); setSelectedInsc(null); }}>Cerrar</Button>}
+        footer={(
+          <div className="row" style={{ justifyContent: 'space-between', width: '100%' }}>
+            <Button variant="danger" icon="trash-2" onClick={deleteInscripcion} disabled={!!deletingInscId}>
+              {deletingInscId ? 'Eliminando...' : 'Eliminar inscripción'}
+            </Button>
+            <Button variant="primary" onClick={() => { setDetailModalOpen(false); setSelectedInsc(null); }}>Cerrar</Button>
+          </div>
+        )}
       >
         {selectedInsc && (
           <div className="stack">
