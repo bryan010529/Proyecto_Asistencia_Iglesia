@@ -19,7 +19,10 @@ const EMPTY_INSCRIPCION_FORM = {
   miembroId: '',
   fechaInscripcion: TODAY,
   estado: 'pendiente',
+  planId: '',
 };
+
+const EMPTY_PLAN_FORM = { nombre: '', precio: '' };
 
 const EMPTY_PAGO_FORM = {
   monto: '',
@@ -93,6 +96,8 @@ function mapInscripcion(inscripcion, cabanaAsignada = null) {
     totalDescuentos: Number(inscripcion.total_descuentos || 0),
     saldo: Number(inscripcion.saldo || 0),
     cabanaAsignada,
+    planNombre: inscripcion.planes_campamento?.nombre || null,
+    planPrecio: Number(inscripcion.planes_campamento?.precio || 0),
   };
 }
 
@@ -166,6 +171,9 @@ export default function CampamentoScreen({ toast }) {
   const [campamentos, setCampamentos] = useState([]);
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [planes, setPlanes] = useState([]);
+  const [planForm, setPlanForm] = useState(EMPTY_PLAN_FORM);
+  const [savingPlan, setSavingPlan] = useState(false);
 
   async function cargarCampamentos() {
     setLoading(true);
@@ -205,7 +213,7 @@ export default function CampamentoScreen({ toast }) {
 
     const { data, error } = await supabase
       .from('inscripciones_campamento')
-      .select('*, miembros(nombre, cedula)')
+      .select('*, miembros(nombre, cedula), planes_campamento(nombre, precio)')
       .eq('campamento_id', campamentoId)
       .order('created_at', { ascending: false });
 
@@ -343,7 +351,7 @@ export default function CampamentoScreen({ toast }) {
     }
 
     const [{ data: inscripcionesData, error: inscripcionesError }, { data: gastosData, error: gastosError }] = await Promise.all([
-      supabase.from('inscripciones_campamento').select('id, estado, saldo, total_pagado, total_descuentos, miembros(tipo_miembro_id, tipos_miembro(nombre))').eq('campamento_id', campamentoId),
+      supabase.from('inscripciones_campamento').select('id, estado, saldo, total_pagado, total_descuentos, miembros(tipo_miembro_id, tipos_miembro(nombre)), planes_campamento(nombre, precio)').eq('campamento_id', campamentoId),
       supabase.from('gastos_campamento').select('monto').eq('campamento_id', campamentoId),
     ]);
 
@@ -385,6 +393,16 @@ export default function CampamentoScreen({ toast }) {
         });
         return Array.from(map.entries()).sort((a, b) => b[1] - a[1]).map(([tipo, cantidad]) => ({ tipo, cantidad }));
       })(),
+      porPlan: (() => {
+        const map = new Map();
+        (inscripcionesData || []).filter((i) => i.estado !== 'cancelada').forEach((i) => {
+          const key = i.planes_campamento?.nombre || 'Sin plan';
+          const precio = Number(i.planes_campamento?.precio || 0);
+          const prev = map.get(key) || { cantidad: 0, totalEsperado: 0, totalPagado: 0 };
+          map.set(key, { cantidad: prev.cantidad + 1, totalEsperado: prev.totalEsperado + precio, totalPagado: prev.totalPagado + Number(i.total_pagado || 0) });
+        });
+        return Array.from(map.entries()).map(([plan, datos]) => ({ plan, ...datos }));
+      })(),
     };
 
     setReporteState(nextReporte);
@@ -393,7 +411,7 @@ export default function CampamentoScreen({ toast }) {
 
   async function recalcularInscripcion(inscripcionId) {
     const [{ data: inscripcionData, error: inscripcionError }, { data: pagosData, error: pagosError }, { data: descuentosData, error: descuentosError }] = await Promise.all([
-      supabase.from('inscripciones_campamento').select('id, campamentos(precio_base)').eq('id', inscripcionId).single(),
+      supabase.from('inscripciones_campamento').select('id, campamentos(precio_base), planes_campamento(precio)').eq('id', inscripcionId).single(),
       supabase.from('pagos_campamento').select('monto').eq('inscripcion_id', inscripcionId),
       supabase.from('descuentos_campamento').select('monto').eq('inscripcion_id', inscripcionId),
     ]);
@@ -404,7 +422,7 @@ export default function CampamentoScreen({ toast }) {
 
     const totalPagado = (pagosData || []).reduce((sum, item) => sum + Number(item.monto || 0), 0);
     const totalDescuentos = (descuentosData || []).reduce((sum, item) => sum + Number(item.monto || 0), 0);
-    const precioBase = Number(inscripcionData?.campamentos?.precio_base || selectedCamp?.precioBase || 0);
+    const precioBase = Number(inscripcionData?.planes_campamento?.precio ?? inscripcionData?.campamentos?.precio_base ?? selectedCamp?.precioBase ?? 0);
     const saldo = Math.max(0, precioBase - totalPagado - totalDescuentos);
     const { error } = await supabase
       .from('inscripciones_campamento')
@@ -439,6 +457,7 @@ export default function CampamentoScreen({ toast }) {
       cargarInscripciones(selectedCampId),
       cargarCabanas(selectedCampId),
       cargarGastos(selectedCampId),
+      cargarPlanes(selectedCampId),
     ]).catch((error) => {
       if (selectedCampId) {
         toast({ type: 'error', title: 'No se pudo cargar el detalle del campamento', msg: getErrorMessage(error, 'Intenta nuevamente.') });
@@ -610,6 +629,35 @@ export default function CampamentoScreen({ toast }) {
     }
   }
 
+  async function cargarPlanes(campamentoId) {
+    if (!campamentoId) { setPlanes([]); return; }
+    const { data } = await supabase.from('planes_campamento').select('*').eq('campamento_id', campamentoId).order('precio', { ascending: false });
+    setPlanes(data || []);
+  }
+
+  async function savePlan() {
+    if (!selectedCampId || !planForm.nombre.trim()) return;
+    setSavingPlan(true);
+    try {
+      const { error } = await supabase.from('planes_campamento').insert({ campamento_id: selectedCampId, nombre: planForm.nombre.trim(), precio: Number(planForm.precio) || 0 });
+      if (error) throw error;
+      setPlanForm(EMPTY_PLAN_FORM);
+      await cargarPlanes(selectedCampId);
+    } catch (error) {
+      toast({ type: 'error', title: 'No se pudo guardar el plan', msg: getErrorMessage(error, 'Intenta nuevamente.') });
+    } finally {
+      setSavingPlan(false);
+    }
+  }
+
+  async function deletePlan(planId) {
+    const confirmed = window.confirm('¿Eliminar este plan? Las inscripciones existentes quedarán sin plan asignado.');
+    if (!confirmed) return;
+    const { error } = await supabase.from('planes_campamento').delete().eq('id', planId);
+    if (error) { toast({ type: 'error', title: 'No se pudo eliminar el plan', msg: getErrorMessage(error, '') }); return; }
+    await cargarPlanes(selectedCampId);
+  }
+
   async function getOrCreateTipoCampamento() {
     const { data } = await supabase.from('tipos_miembro').select('id').eq('nombre', 'Campamento').maybeSingle();
     if (data) return data.id;
@@ -629,12 +677,15 @@ export default function CampamentoScreen({ toast }) {
     if (!selectedCamp) return;
     setSavingInsc(true);
     try {
+      const planSeleccionado = planes.find((p) => p.id === Number(inscForm.planId));
+      const saldoInicial = planSeleccionado ? Number(planSeleccionado.precio) : Number(selectedCamp.precioBase) || 0;
       const { error } = await supabase.from('inscripciones_campamento').insert({
         campamento_id: selectedCamp.id,
         miembro_id: Number(inscForm.miembroId),
         fecha_inscripcion: inscForm.fechaInscripcion,
         estado: inscForm.estado,
-        saldo: Number(selectedCamp.precioBase) || 0,
+        plan_id: planSeleccionado?.id || null,
+        saldo: saldoInicial,
         registrado_por: user.id,
       });
       if (error) throw error;
@@ -664,12 +715,15 @@ export default function CampamentoScreen({ toast }) {
         .single();
       if (miembroError) throw miembroError;
       createdMiembroId = miembro.id;
+      const planSeleccionado = planes.find((p) => p.id === Number(inscForm.planId));
+      const saldoInicial = planSeleccionado ? Number(planSeleccionado.precio) : Number(selectedCamp.precioBase) || 0;
       const { error: inscError } = await supabase.from('inscripciones_campamento').insert({
         campamento_id: selectedCamp.id,
         miembro_id: miembro.id,
         fecha_inscripcion: inscForm.fechaInscripcion,
         estado: inscForm.estado,
-        saldo: Number(selectedCamp.precioBase) || 0,
+        plan_id: planSeleccionado?.id || null,
+        saldo: saldoInicial,
         registrado_por: user.id,
       });
       if (inscError) throw inscError;
@@ -1153,6 +1207,7 @@ export default function CampamentoScreen({ toast }) {
                         <tr>
                           <th>Miembro</th>
                           <th>Fecha</th>
+                          <th>Plan</th>
                           <th>Estado</th>
                           <th>Cabaña</th>
                           <th>Pagado</th>
@@ -1171,6 +1226,7 @@ export default function CampamentoScreen({ toast }) {
                               </div>
                             </td>
                             <td className="tnum">{formatDate(insc.fechaInscripcion)}</td>
+                            <td>{insc.planNombre ? <Badge variant="neutral">{insc.planNombre}</Badge> : <span className="muted">—</span>}</td>
                             <td>
                               <select
                                 className="inp"
@@ -1333,6 +1389,35 @@ export default function CampamentoScreen({ toast }) {
                             <tr key={item.metodoPago}>
                               <td style={{ textTransform: 'capitalize' }}>{item.metodoPago}</td>
                               <td className="tnum">{formatMoney(item.total)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+
+                  <div className="card" style={{ padding: 16 }}>
+                    <div className="card-title" style={{ marginBottom: 12 }}>Inscripciones por plan de precio</div>
+                    {!(reporteState?.porPlan || []).length && (
+                      <p className="muted">No hay inscripciones activas con plan asignado.</p>
+                    )}
+                    {!!(reporteState?.porPlan || []).length && (
+                      <table className="tbl">
+                        <thead>
+                          <tr>
+                            <th>Plan</th>
+                            <th>Cant.</th>
+                            <th>Total esperado</th>
+                            <th>Total pagado</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {reporteState.porPlan.map((item) => (
+                            <tr key={item.plan}>
+                              <td>{item.plan}</td>
+                              <td className="tnum">{item.cantidad}</td>
+                              <td className="tnum">{formatMoney(item.totalEsperado)}</td>
+                              <td className="tnum">{formatMoney(item.totalPagado)}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -1547,6 +1632,30 @@ export default function CampamentoScreen({ toast }) {
               <option value="cancelado">Cancelado</option>
             </select>
           </div>
+
+          {editingCamp && (
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+              <div className="card-title" style={{ marginBottom: 12 }}>Planes de precio</div>
+              {planes.length === 0 && <p className="muted" style={{ marginBottom: 10 }}>Sin planes. Se usará el precio base al inscribir.</p>}
+              {planes.map((p) => (
+                <div key={p.id} className="row" style={{ justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+                  <span style={{ fontWeight: 500 }}>{p.nombre} <span className="muted">· {formatMoney(p.precio)}</span></span>
+                  <Button variant="ghost" size="sm" icon="trash-2" onClick={() => deletePlan(p.id)} />
+                </div>
+              ))}
+              <div className="row" style={{ gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                <div style={{ flex: '1 1 140px' }}>
+                  <Input label="Nombre del plan" value={planForm.nombre} onChange={(e) => setPlanForm((f) => ({ ...f, nombre: e.target.value }))} placeholder="Ej. Adulto, Infante, Niño" />
+                </div>
+                <div style={{ flex: '1 1 110px' }}>
+                  <Input label="Precio (DOP)" type="number" min="0" step="0.01" value={planForm.precio} onChange={(e) => setPlanForm((f) => ({ ...f, precio: e.target.value }))} placeholder="0.00" />
+                </div>
+                <div style={{ paddingTop: 22 }}>
+                  <Button variant="secondary" icon="plus" onClick={savePlan} disabled={savingPlan || !planForm.nombre.trim()}>Agregar</Button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </Modal>
 
@@ -1561,7 +1670,7 @@ export default function CampamentoScreen({ toast }) {
             <Button
               variant="primary"
               onClick={quickPersonMode ? inscribirPersonaNueva : saveInscripcion}
-              disabled={savingInsc || (quickPersonMode ? !quickForm.nombre.trim() : !inscForm.miembroId)}
+              disabled={savingInsc || (quickPersonMode ? !quickForm.nombre.trim() : !inscForm.miembroId) || (planes.length > 0 && !inscForm.planId)}
             >
               {savingInsc ? 'Guardando...' : 'Inscribir'}
             </Button>
@@ -1635,6 +1744,22 @@ export default function CampamentoScreen({ toast }) {
                 placeholder="opcional"
               />
             </>
+          )}
+
+          {planes.length > 0 && (
+            <div className="field">
+              <label>Plan de precio *</label>
+              <select
+                className="inp"
+                value={inscForm.planId}
+                onChange={(e) => setInscForm((f) => ({ ...f, planId: e.target.value }))}
+              >
+                <option value="">Selecciona un plan</option>
+                {planes.map((p) => (
+                  <option key={p.id} value={p.id}>{p.nombre} · {formatMoney(p.precio)}</option>
+                ))}
+              </select>
+            </div>
           )}
 
           <Input
