@@ -129,6 +129,7 @@ export default function CampamentoScreen({ toast }) {
   const [tab, setTab] = useState('inscripciones');
   const [memberSearch, setMemberSearch] = useState('');
   const [updatingEstadoId, setUpdatingEstadoId] = useState(null);
+  const [updatingPlanId, setUpdatingPlanId] = useState(null);
   const [deletingPagoId, setDeletingPagoId] = useState(null);
   const [deletingDescuentoId, setDeletingDescuentoId] = useState(null);
   const [deletingGastoId, setDeletingGastoId] = useState(null);
@@ -541,6 +542,11 @@ export default function CampamentoScreen({ toast }) {
     return members.filter((m) => !inscritosIds.has(m.id)).length;
   }, [selectedCampId, inscripcionesState, members]);
 
+  const saldoPendienteTotal = useMemo(
+    () => inscripcionesState.filter((i) => i.estado !== 'cancelada').reduce((sum, i) => sum + Number(i.saldo || 0), 0),
+    [inscripcionesState],
+  );
+
   function syncInscripcionState(updated) {
     if (!updated?.id) return;
 
@@ -896,6 +902,21 @@ export default function CampamentoScreen({ toast }) {
     }
   }
 
+  async function changeInscripcionPlan(inscripcionId, planId) {
+    setUpdatingPlanId(inscripcionId);
+    try {
+      const { error } = await supabase.from('inscripciones_campamento').update({ plan_id: planId || null }).eq('id', inscripcionId);
+      if (error) throw error;
+      await recalcularInscripcion(inscripcionId);
+      await cargarInscripciones(selectedCampId);
+      if (tab === 'reporte') await cargarReporte(selectedCampId);
+    } catch (error) {
+      toast({ type: 'error', title: 'No se pudo cambiar el plan', msg: getErrorMessage(error, 'Intenta nuevamente.') });
+    } finally {
+      setUpdatingPlanId(null);
+    }
+  }
+
   async function changeInscripcionEstado(inscripcionId, estado) {
     setUpdatingEstadoId(inscripcionId);
     try {
@@ -1122,6 +1143,11 @@ export default function CampamentoScreen({ toast }) {
           <div className="value">{sinInscribir ?? '—'}</div>
           <div className="muted">Miembros activos no inscritos</div>
         </div>
+        <div className="card kpi">
+          <div className="label">Saldo pendiente</div>
+          <div className="value" style={{ fontSize: 20 }}>{formatMoney(saldoPendienteTotal)}</div>
+          <div className="muted">{selectedCampId ? 'Por cobrar (evento seleccionado)' : 'Selecciona un evento'}</div>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '300px minmax(0, 1fr)', gap: 16 }}>
@@ -1226,7 +1252,20 @@ export default function CampamentoScreen({ toast }) {
                               </div>
                             </td>
                             <td className="tnum">{formatDate(insc.fechaInscripcion)}</td>
-                            <td>{insc.planNombre ? <Badge variant="neutral">{insc.planNombre}</Badge> : <span className="muted">—</span>}</td>
+                            <td>
+                              <select
+                                className="inp"
+                                value={insc.plan_id || ''}
+                                disabled={updatingPlanId === insc.id}
+                                onChange={(e) => changeInscripcionPlan(insc.id, e.target.value)}
+                                style={{ minWidth: 120 }}
+                              >
+                                <option value="">Sin plan</option>
+                                {planes.map((p) => (
+                                  <option key={p.id} value={p.id}>{p.nombre}</option>
+                                ))}
+                              </select>
+                            </td>
                             <td>
                               <select
                                 className="inp"
