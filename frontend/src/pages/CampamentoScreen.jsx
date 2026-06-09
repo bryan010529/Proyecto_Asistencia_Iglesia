@@ -828,6 +828,52 @@ export default function CampamentoScreen({ toast }) {
     }
   }
 
+  async function saveDescuentoGeneral() {
+    if (!selectedCampId) return;
+    setSavingDescuentoGeneral(true);
+    try {
+      const inscripcionesFiltradas = inscripcionesState.filter((insc) => {
+        if (descuentoGeneralForm.aplicarA === 'todas') return true;
+        return insc.estado === descuentoGeneralForm.aplicarA;
+      });
+
+      for (const insc of inscripcionesFiltradas) {
+        const precioEfectivo = insc.planPrecio > 0 ? insc.planPrecio : (selectedCamp?.precioBase ?? 0);
+        const monto =
+          descuentoGeneralForm.tipo === 'porcentaje'
+            ? precioEfectivo * (Number(descuentoGeneralForm.valor) / 100)
+            : Number(descuentoGeneralForm.valor);
+
+        const { error } = await supabase.from('descuentos_campamento').insert({
+          inscripcion_id: insc.id,
+          motivo: descuentoGeneralForm.motivo,
+          monto,
+          registrado_por: user.id,
+        });
+        if (error) throw error;
+        await recalcularInscripcion(insc.id);
+      }
+
+      toast({
+        type: 'success',
+        title: 'Descuento general aplicado',
+        msg: `${inscripcionesFiltradas.length} inscripción(es) actualizadas`,
+      });
+      setDescuentoGeneralModalOpen(false);
+      setDescuentoGeneralForm(EMPTY_DESCUENTO_GENERAL_FORM);
+      const [inscripcionesData, reporteData] = await Promise.all([
+        cargarInscripciones(selectedCampId),
+        cargarReporte(selectedCampId),
+      ]);
+      setInscripcionesState(inscripcionesData || []);
+      setReporteState(reporteData || null);
+    } catch (error) {
+      toast({ type: 'error', title: 'No se pudo aplicar el descuento general', msg: getErrorMessage(error, 'Intenta nuevamente.') });
+    } finally {
+      setSavingDescuentoGeneral(false);
+    }
+  }
+
   async function saveCabana() {
     if (!selectedCampId) return;
     setSavingCabana(true);
