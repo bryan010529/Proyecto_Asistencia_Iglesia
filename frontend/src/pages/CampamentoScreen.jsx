@@ -2082,6 +2082,100 @@ export default function CampamentoScreen({ toast }) {
           </div>
         </div>
       </Modal>
+
+      {/* Modal descuento general */}
+      <Modal
+        open={descuentoGeneralModalOpen}
+        title="Descuento general"
+        onClose={() => { setDescuentoGeneralModalOpen(false); setDescuentoGeneralForm(EMPTY_DESCUENTO_GENERAL_FORM); }}
+        footer={(
+          <div className="row" style={{ justifyContent: 'flex-end', gap: 8, width: '100%' }}>
+            <Button variant="ghost" onClick={() => { setDescuentoGeneralModalOpen(false); setDescuentoGeneralForm(EMPTY_DESCUENTO_GENERAL_FORM); }}>Cancelar</Button>
+            <Button
+              variant="primary"
+              icon="tag"
+              onClick={saveDescuentoGeneral}
+              disabled={
+                savingDescuentoGeneral ||
+                !descuentoGeneralForm.motivo ||
+                !descuentoGeneralForm.valor ||
+                Number(descuentoGeneralForm.valor) <= 0 ||
+                inscripcionesState.filter((i) => descuentoGeneralForm.aplicarA === 'todas' || i.estado === descuentoGeneralForm.aplicarA).length === 0
+              }
+            >
+              {savingDescuentoGeneral ? 'Aplicando...' : 'Aplicar descuento general'}
+            </Button>
+          </div>
+        )}
+      >
+        <div className="stack">
+          <div>
+            <div className="label" style={{ marginBottom: 6 }}>Tipo de descuento</div>
+            <div className="row" style={{ gap: 16 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                <input
+                  type="radio"
+                  name="tipoDscto"
+                  value="porcentaje"
+                  checked={descuentoGeneralForm.tipo === 'porcentaje'}
+                  onChange={() => setDescuentoGeneralForm((f) => ({ ...f, tipo: 'porcentaje', valor: '' }))}
+                />
+                Porcentaje (%)
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                <input
+                  type="radio"
+                  name="tipoDscto"
+                  value="monto"
+                  checked={descuentoGeneralForm.tipo === 'monto'}
+                  onChange={() => setDescuentoGeneralForm((f) => ({ ...f, tipo: 'monto', valor: '' }))}
+                />
+                Monto fijo ($)
+              </label>
+            </div>
+          </div>
+
+          <Input
+            label={descuentoGeneralForm.tipo === 'porcentaje' ? 'Porcentaje (%)' : 'Monto fijo (DOP)'}
+            type="number"
+            min="0"
+            value={descuentoGeneralForm.valor}
+            onChange={(e) => setDescuentoGeneralForm((f) => ({ ...f, valor: e.target.value }))}
+            placeholder={descuentoGeneralForm.tipo === 'porcentaje' ? 'Ej: 10' : 'Ej: 500'}
+          />
+
+          <Input
+            label="Motivo"
+            value={descuentoGeneralForm.motivo}
+            onChange={(e) => setDescuentoGeneralForm((f) => ({ ...f, motivo: e.target.value }))}
+            placeholder="Ej: Descuento por inscripción temprana"
+          />
+
+          <div>
+            <div className="label" style={{ marginBottom: 6 }}>Aplicar a</div>
+            <select
+              value={descuentoGeneralForm.aplicarA}
+              onChange={(e) => setDescuentoGeneralForm((f) => ({ ...f, aplicarA: e.target.value }))}
+              style={{ width: '100%' }}
+            >
+              <option value="todas">Todas las inscripciones</option>
+              <option value="confirmada">Solo confirmadas</option>
+              <option value="pendiente">Solo pendientes</option>
+            </select>
+          </div>
+
+          {(() => {
+            const count = inscripcionesState.filter((i) => descuentoGeneralForm.aplicarA === 'todas' || i.estado === descuentoGeneralForm.aplicarA).length;
+            return (
+              <p className="muted" style={{ fontSize: 13 }}>
+                {count === 0
+                  ? 'No hay inscripciones que coincidan con el filtro seleccionado.'
+                  : `Se aplicará a ${count} inscripción(es).`}
+              </p>
+            );
+          })()}
+        </div>
+      </Modal>
     </div>
   );
 }
