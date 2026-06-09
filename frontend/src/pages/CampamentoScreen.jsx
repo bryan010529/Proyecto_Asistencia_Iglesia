@@ -834,7 +834,7 @@ export default function CampamentoScreen({ toast }) {
     try {
       const inscripcionesFiltradas = inscripcionesState.filter((insc) => {
         if (descuentoGeneralForm.aplicarA === 'todas') return true;
-        return insc.estado === descuentoGeneralForm.aplicarA;
+        return (insc.planNombre || '') === descuentoGeneralForm.aplicarA;
       });
 
       for (const insc of inscripcionesFiltradas) {
@@ -2100,7 +2100,7 @@ export default function CampamentoScreen({ toast }) {
                 !descuentoGeneralForm.motivo ||
                 !descuentoGeneralForm.valor ||
                 Number(descuentoGeneralForm.valor) <= 0 ||
-                inscripcionesState.filter((i) => descuentoGeneralForm.aplicarA === 'todas' || i.estado === descuentoGeneralForm.aplicarA).length === 0
+                inscripcionesState.filter((i) => descuentoGeneralForm.aplicarA === 'todas' || (i.planNombre || '') === descuentoGeneralForm.aplicarA).length === 0
               }
             >
               {savingDescuentoGeneral ? 'Aplicando...' : 'Aplicar descuento general'}
@@ -2159,13 +2159,14 @@ export default function CampamentoScreen({ toast }) {
               style={{ width: '100%' }}
             >
               <option value="todas">Todas las inscripciones</option>
-              <option value="confirmada">Solo confirmadas</option>
-              <option value="pendiente">Solo pendientes</option>
+              {planes.map((p) => (
+                <option key={p.id} value={p.nombre}>{p.nombre}</option>
+              ))}
             </select>
           </div>
 
           {(() => {
-            const count = inscripcionesState.filter((i) => descuentoGeneralForm.aplicarA === 'todas' || i.estado === descuentoGeneralForm.aplicarA).length;
+            const count = inscripcionesState.filter((i) => descuentoGeneralForm.aplicarA === 'todas' || (i.planNombre || '') === descuentoGeneralForm.aplicarA).length;
             return (
               <p className="muted" style={{ fontSize: 13 }}>
                 {count === 0
