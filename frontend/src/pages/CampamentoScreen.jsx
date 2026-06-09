@@ -1277,9 +1277,14 @@ export default function CampamentoScreen({ toast }) {
                 <div className="card" style={{ padding: 16 }}>
                   <div className="row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
                     <div className="card-title" style={{ margin: 0 }}>Inscripciones</div>
-                    <Button variant="primary" icon="user-plus" onClick={() => { setInscForm(EMPTY_INSCRIPCION_FORM); setQuickForm({ nombre: '', correo: '', celula: '' }); setQuickPersonMode(false); setMemberSearch(''); setInscModalOpen(true); }}>
-                      Inscribir miembro
-                    </Button>
+                    <div className="row" style={{ gap: 8 }}>
+                      <Button variant="secondary" icon="tag" onClick={() => { setDescuentoGeneralForm(EMPTY_DESCUENTO_GENERAL_FORM); setDescuentoGeneralModalOpen(true); }}>
+                        Descuento general
+                      </Button>
+                      <Button variant="primary" icon="user-plus" onClick={() => { setInscForm(EMPTY_INSCRIPCION_FORM); setQuickForm({ nombre: '', correo: '', celula: '' }); setQuickPersonMode(false); setMemberSearch(''); setInscModalOpen(true); }}>
+                        Inscribir miembro
+                      </Button>
+                    </div>
                   </div>
                   {!inscripcionesState.length && <p className="muted">Todavía no hay inscripciones para este campamento.</p>}
                   {inscripcionesState.length > 0 && (
