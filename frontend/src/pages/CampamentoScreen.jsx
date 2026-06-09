@@ -37,6 +37,13 @@ const EMPTY_DESCUENTO_FORM = {
   monto: '',
 };
 
+const EMPTY_DESCUENTO_GENERAL_FORM = {
+  tipo: 'porcentaje',
+  valor: '',
+  motivo: '',
+  aplicarA: 'todas',
+};
+
 const EMPTY_GASTO_FORM = {
   concepto: '',
   monto: '',
@@ -158,6 +165,9 @@ export default function CampamentoScreen({ toast }) {
   const [savingPago, setSavingPago] = useState(false);
   const [descuentoForm, setDescuentoForm] = useState(EMPTY_DESCUENTO_FORM);
   const [savingDescuento, setSavingDescuento] = useState(false);
+  const [descuentoGeneralModalOpen, setDescuentoGeneralModalOpen] = useState(false);
+  const [descuentoGeneralForm, setDescuentoGeneralForm] = useState(EMPTY_DESCUENTO_GENERAL_FORM);
+  const [savingDescuentoGeneral, setSavingDescuentoGeneral] = useState(false);
   const [gastoForm, setGastoForm] = useState(EMPTY_GASTO_FORM);
   const [savingGasto, setSavingGasto] = useState(false);
 
